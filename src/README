@@ -1,0 +1,28 @@
+### Thomas Brewer 11/10/2023 ###
+
+# Program Function
+This program will interact with the LTC6812 dev. board using SPI communication. 
+It will print out the cell voltage values to the serial monitor. Currently it also includes basic GPIO 
+manipulation but that still needs more work. 
+
+# Future Work
+* alter LTC68xx libraries to allow for two SPI channels
+    -need to select between VSPI and HSPI on the ESP32 when sending commands
+    -one channel will be used for each battery pack
+* test I2C communication using GPIO pins for communication with MUXs
+
+
+# Libraries
+<LTC6812.h> Library used to interact with LTC6812 (often calls LTC681x.h)
+<LTC681x.h> Library used to interact with generic LTC681x devices
+
+
+# External Sources
+<LTC6812.h> and <LTC681x.h> are taken from Analog Devices LINDUINO libraries:
+https://github.com/analogdevicesinc/Linduino.git
+
+Dev. Board Demo Code, includes examples for interacting with device:
+https://github.com/analogdevicesinc/Linduino/blob/master/LTSketchbook/Part%20Number/6000/6812/DC2350AA/DC2350AA.ino#L191
+
+May need external driver for ESP32:
+https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
