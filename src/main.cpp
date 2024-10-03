@@ -5,9 +5,8 @@ out the cell voltage values to the serial monitor.
 See README file for links to libraries, ect.
 
 */
-
 #include <Arduino.h>
-#include <spi.h>
+#include <SPI.h>
 #include <LTC6812.h>
 #include <LTC681x.h>
 
