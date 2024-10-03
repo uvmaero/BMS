@@ -2,8 +2,7 @@
 This program will interact with the LTC6812 dev. board using SPI. It will print
 out the cell voltage values to the serial monitor.
 
-See README file for links to libraries, ect.
-
+See README file for links to libraries, etc.
 */
 
 /*
@@ -142,11 +141,8 @@ void loop() {
   LTC6812_wrcfg(total_ic,BMS_IC);
   LTC6812_wrcfgb(total_ic,BMS_IC);
   print_wrconfig();
-  //print_wrconfigb(); 
-
 
   delay(1000);
-
 }
 
 
@@ -167,15 +163,12 @@ void read_voltage(){
   Serial.print("Conversion Time: ");
   Serial.println(conv_time);
   
-  
   //reads cell voltage
-  pec_error = LTC6812_rdcv(REG_ALL,total_ic,BMS_IC);    //read registers, number of ICs, pointer to structure where data will be stored
-  if(pec_error==-1)Serial.println("Read Error");    //check for error
+  pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);    //read registers, number of ICs, pointer to structure where data will be stored
+  if(pec_error == -1) Serial.println("Read Error");    //check for error
 
   //LINDUINO function to print cell data to serial monitor
   print_cells(DATALOG_ENABLED);
-
-  return;
 }
 
 
