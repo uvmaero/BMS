@@ -5,11 +5,23 @@ out the cell voltage values to the serial monitor.
 See README file for links to libraries, ect.
 
 */
+
+/*
+===============================================================================================
+                                    Includes
+===============================================================================================
+*/
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <LTC6812.h>
 #include <LTC681x.h>
 
+/*
+===============================================================================================
+                                    Definitions
+===============================================================================================
+*/
 //Input and output pins on ESP32
 /// Vspi pins 
 #define MOSI   23  //GPIO23  MOSI
@@ -22,10 +34,15 @@ See README file for links to libraries, ect.
 #define TXD 1 //CAN_MISO
 #define RXD 3 //CAN_MOSI
 
-/******************************************/
-/*Configuraitions taken from example code*/
-
 #define DATALOG_ENABLED 1
+
+/*
+===============================================================================================
+                                    Configuration
+===============================================================================================
+*/
+
+
 //Under Voltage and Over Voltage Thresholds
 const uint16_t OV_THRESHOLD = 41000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
 const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
@@ -36,36 +53,52 @@ bool REFON = true; //!< Reference Powered Up Bit
 bool ADCOPT = false; //!< ADC Mode option bit
 bool GPIOBITS_A[5] = {false,false,true,true,true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
 bool GPIOBITS_B[4] = {false,false,false,false}; //!< GPIO Pin Control // Gpio 6,7,8,9
-uint16_t UV=UV_THRESHOLD; //!< Under voltage Comparison Voltage
-uint16_t OV=OV_THRESHOLD; //!< Over voltage Comparison Voltage
+
+uint16_t UV= UV_THRESHOLD; //!< Under voltage Comparison Voltage
+uint16_t OV= OV_THRESHOLD; //!< Over voltage Comparison Voltage
+
 bool DCCBITS_A[12] = {false,false,false,false,false,false,false,false,false,false,false,false}; //!< Discharge cell switch //Dcc 1,2,3,4,5,6,7,8,9,10,11,12
 bool DCCBITS_B[7]= {false,false,false,false}; //!< Discharge cell switch //Dcc 0,13,14,15
-bool DCTOBITS[4] = {true,false,true,false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min 
+bool DCTOBITS[4] = {true,false,true,false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min
+
 /*Ensure that Dcto bits are set according to the required discharge time. Refer to the data sheet */
 bool FDRF = false; //!< Force Digital Redundancy Failure Bit
 bool DTMEN = true; //!< Enable Discharge Timer Monitor
 bool PSBits[2]= {false,false}; //!< Digital Redundancy Path Selection//ps-0,1
 
+/*
+===============================================================================================
+                                  Global Variables
+===============================================================================================
+*/
 
-/// GLOBAL Variables ///
-const uint8_t total_ic = 1; //number of ic's in daisy chain
-uint16_t conv_time;
+const uint8_t total_ic = 2; //number of ic's in daisy chain -- Changed to two as there are to ICs - Spenser Oct. 3
+uint16_t conv_time = 0; //Set to default value - Spenser Oct. 3
 cell_asic BMS_IC[total_ic];
 //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
+/*
+===============================================================================================
+                                    Function Declarations
+===============================================================================================
+*/
 
-///  function declarations ///
 void read_voltage(void);
 void print_cells(uint8_t);
 void print_wrconfig(void);
 void serial_print_hex(uint8_t);
 
+/*
+===============================================================================================
+                                            Setup
+===============================================================================================
+*/
 
 void setup() {
   Serial.begin(9600);
   Serial.println("        ");
 
-  /***Spi Initializations***/
+  /*** Spi Initializations ***/
   //vspi = new SPIClass(VSPI);
   //SPI.begin(SCLK,MISO,MOSI,CS1); //SCLK,MISO,MOSI,CS1     set spi pins for ESP32
   SPI.begin();
@@ -82,10 +115,13 @@ void setup() {
 
   LTC6812_reset_crc_count(total_ic,BMS_IC);
   LTC6812_init_reg_limits(total_ic,BMS_IC);
-
-
-
 }
+
+/*
+===============================================================================================
+                                    Main Loop
+===============================================================================================
+*/
 
 void loop() {
 
@@ -117,7 +153,7 @@ void loop() {
 
 
 /***Basic function to read cell voltages****/
-void read_voltage(void){
+void read_voltage(){
   //error detection
   uint8_t pec_error;
 
