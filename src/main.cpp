@@ -36,7 +36,7 @@ See README file for links to libraries, etc.
 #define DATALOG_ENABLED 1
 
 //FreeRTOS tasks
-
+#define SERIAL_WRITE_REFRESH_RATE 10
 
 
 #define TASK_STACK_SIZE 20000 // in bytes
@@ -216,6 +216,18 @@ void loop() {
   }
 }
 
+
+void serialWriteTask(void *pvParameters) {
+    for(;;) {
+        //Check for mutex availability
+        if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+            //LINDUINO function to print cell data to serial monitor
+            print_cells(DATALOG_ENABLED);
+        }
+        xSemaphoreGive(xMutex);
+    }
+    vTaskDelay(SERIAL_WRITE_REFRESH_RATE);
+}
 /*
 ===============================================================================================
                                     Helper Functions
