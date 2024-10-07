@@ -71,7 +71,7 @@ bool PSBits[2]= {false,false}; //!< Digital Redundancy Path Selection//ps-0,1
 ===============================================================================================
 */
 
-const uint8_t total_ic = 2; //number of ic's in daisy chain -- Changed to two as there are to ICs - Spenser Oct. 3
+const uint8_t total_ic =  2; //number of ic's in daisy chain -- Changed to two as there are to ICs - Spenser Oct. 3
 uint16_t conv_time = 0; //Set to default value - Spenser Oct. 3
 cell_asic BMS_IC[total_ic];
 //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
