@@ -41,6 +41,7 @@ See README file for links to libraries, etc.
 #define TEMPERATURE_READ_REFRESH_RATE 9           // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TWAI_READ_REFRESH_RATE 1 // every other tick (?)
 
+#define SERIAL_WRITE_REFRESH_RATE 10
 
 
 #define TASK_STACK_SIZE 20000 // in bytes
