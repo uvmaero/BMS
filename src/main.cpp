@@ -35,17 +35,18 @@ const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB 
 **************************************************************************/
 bool REFON = true; //!< Reference Powered Up Bit
 bool ADCOPT = false; //!< ADC Mode option bit
-bool GPIOBITS_A[5] = {false,false,true,true,true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
-bool GPIOBITS_B[4] = {false,false,false,false}; //!< GPIO Pin Control // Gpio 6,7,8,9
-uint16_t UV=UV_THRESHOLD; //!< Under voltage Comparison Voltage
-uint16_t OV=OV_THRESHOLD; //!< Over voltage Comparison Voltage
-bool DCCBITS_A[12] = {false,false,false,false,false,false,false,false,false,false,false,false}; //!< Discharge cell switch //Dcc 1,2,3,4,5,6,7,8,9,10,11,12
-bool DCCBITS_B[7]= {false,false,false,false}; //!< Discharge cell switch //Dcc 0,13,14,15
-bool DCTOBITS[4] = {true,false,true,false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min 
+bool GPIOBITS_A[5] = {false, false, true, true, true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
+bool GPIOBITS_B[4] = {false, false, false, false}; //!< GPIO Pin Control // Gpio 6,7,8,9
+uint16_t UV = UV_THRESHOLD; //!< Under voltage Comparison Voltage
+uint16_t OV = OV_THRESHOLD; //!< Over voltage Comparison Voltage
+bool DCCBITS_A[12] = {false, false, false, false, false, false, false, false, false, false, false, false};
+//!< Discharge cell switch //Dcc 1,2,3,4,5,6,7,8,9,10,11,12
+bool DCCBITS_B[7] = {false, false, false, false}; //!< Discharge cell switch //Dcc 0,13,14,15
+bool DCTOBITS[4] = {true, false, true, false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min
 /*Ensure that Dcto bits are set according to the required discharge time. Refer to the data sheet */
 bool FDRF = false; //!< Force Digital Redundancy Failure Bit
 bool DTMEN = true; //!< Enable Discharge Timer Monitor
-bool PSBits[2]= {false,false}; //!< Digital Redundancy Path Selection//ps-0,1
+bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 
 
 /// GLOBAL Variables ///
@@ -76,49 +77,40 @@ void setup() {
   /*** LTC6812 Initializations ***/
   //initialize configuration registers
   LTC6812_init_cfg(total_ic, BMS_IC);
-  LTC6812_init_cfgb(total_ic,BMS_IC);
-  //set registers for each IC 
-  LTC6812_set_cfgr(1,BMS_IC,REFON,ADCOPT,GPIOBITS_A,DCCBITS_A, DCTOBITS, UV, OV);
-  LTC6812_set_cfgrb(1,BMS_IC,FDRF,DTMEN,PSBits,GPIOBITS_B,DCCBITS_B);   
+  LTC6812_init_cfgb(total_ic, BMS_IC);
+  //set registers for each IC
+  LTC6812_set_cfgr(1, BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+  LTC6812_set_cfgrb(1, BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
 
-  LTC6812_reset_crc_count(total_ic,BMS_IC);
-  LTC6812_init_reg_limits(total_ic,BMS_IC);
-
-
-
+  LTC6812_reset_crc_count(total_ic, BMS_IC);
+  LTC6812_init_reg_limits(total_ic, BMS_IC);
 }
 
 void loop() {
-
   read_voltage();
 
-   // Set and reset the gpio pins(to drive output on gpio pins)
+  // Set and reset the gpio pins(to drive output on gpio pins)
   /***********************************************************************
-   Please ensure you have set the GPIO bits according to your requirement 
+   Please ensure you have set the GPIO bits according to your requirement
     in the configuration register.( check the global variable GPIOBITS_A )
-  ************************************************************************/ 
+  ************************************************************************/
   wakeup_sleep(total_ic);
-  for (uint8_t current_ic = 0; current_ic<total_ic;current_ic++) 
-  {
-    LTC6812_set_cfgr(current_ic,BMS_IC,REFON,ADCOPT,GPIOBITS_A,DCCBITS_A, DCTOBITS, UV, OV);
-    LTC6812_set_cfgrb(current_ic,BMS_IC,FDRF,DTMEN,PSBits,GPIOBITS_B,DCCBITS_B);   
-  } 
+  for (uint8_t current_ic = 0; current_ic < total_ic; current_ic++) {
+    LTC6812_set_cfgr(current_ic, BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+    LTC6812_set_cfgrb(current_ic, BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+  }
   wakeup_idle(total_ic);
-  LTC6812_wrcfg(total_ic,BMS_IC);
-  LTC6812_wrcfgb(total_ic,BMS_IC);
+  LTC6812_wrcfg(total_ic, BMS_IC);
+  LTC6812_wrcfgb(total_ic, BMS_IC);
   print_wrconfig();
-  //print_wrconfigb(); 
+  //print_wrconfigb();
 
 
   delay(1000);
-
 }
 
-
-
-
 /***Basic function to read cell voltages****/
-void read_voltage(void){
+void read_voltage(void) {
   //error detection
   uint8_t pec_error;
 
@@ -126,16 +118,17 @@ void read_voltage(void){
   wakeup_sleep(total_ic);
 
   //start ADC voltage conversion
-  LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL);  //normal operation, discharge disabled, all cell channels
+  LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
   //wait for ADC conversion
   conv_time = LTC6812_pollAdc();
   Serial.print("Conversion Time: ");
   Serial.println(conv_time);
-  
-  
+
+
   //reads cell voltage
-  pec_error = LTC6812_rdcv(REG_ALL,total_ic,BMS_IC);    //read registers, number of ICs, pointer to structure where data will be stored
-  if(pec_error==-1)Serial.println("Read Error");    //check for error
+  pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
+  //read registers, number of ICs, pointer to structure where data will be stored
+  if (pec_error == -1)Serial.println("Read Error"); //check for error
 
   //LINDUINO function to print cell data to serial monitor
   print_cells(DATALOG_ENABLED);
@@ -148,31 +141,25 @@ void read_voltage(void){
   \brief Prints cell voltage to the serial port
    @return void
  *************************************************************/
-void print_cells(uint8_t datalog_en)
-{
-  for (int current_ic = 0 ; current_ic < total_ic; current_ic++)
-  {
-    if (datalog_en == 0)
-    {
+void print_cells(uint8_t datalog_en) {
+  for (int current_ic = 0; current_ic < total_ic; current_ic++) {
+    if (datalog_en == 0) {
       Serial.print(" IC ");
-      Serial.print(current_ic+1,DEC);
+      Serial.print(current_ic + 1,DEC);
       Serial.print(", ");
-      for (int i=0; i<BMS_IC[0].ic_reg.cell_channels; i++)
-      {
+      for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
         Serial.print(" C");
-        Serial.print(i+1,DEC);
+        Serial.print(i + 1,DEC);
         Serial.print(":");
-        Serial.print(BMS_IC[current_ic].cells.c_codes[i]*0.0001,4);
+        Serial.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
         Serial.print(",");
       }
       Serial.println();
     }
-    else
-    {
+    else {
       Serial.print(" Cells, ");
-      for (int i=0; i<BMS_IC[0].ic_reg.cell_channels; i++)
-      {
-        Serial.print(BMS_IC[current_ic].cells.c_codes[i]*0.0001,4);
+      for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
+        Serial.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
         Serial.print(",");
       }
     }
@@ -181,43 +168,37 @@ void print_cells(uint8_t datalog_en)
 }
 
 
-
 /*!******************************************************************************
- \brief Prints the Configuration Register A data that is going to be written to 
+ \brief Prints the Configuration Register A data that is going to be written to
  the LTC6812 to the serial port.
   @return void
  ********************************************************************************/
-void print_wrconfig(void)
-{
-    int cfg_pec;
-    Serial.println(F("Written Configuration A Register: "));
-    for (int current_ic = 0; current_ic<total_ic; current_ic++)
-    {
-      Serial.print(F("CFGA IC "));
-      Serial.print(current_ic+1,DEC);
-      for(int i = 0;i<6;i++)
-      {
-        Serial.print(F(", 0x"));
-        serial_print_hex(BMS_IC[current_ic].config.tx_data[i]);
-      }
-      Serial.print(F(", Calculated PEC: 0x"));
-      cfg_pec = pec15_calc(6,&BMS_IC[current_ic].config.tx_data[0]);
-      serial_print_hex((uint8_t)(cfg_pec>>8));
+void print_wrconfig(void) {
+  int cfg_pec;
+  Serial.println(F("Written Configuration A Register: "));
+  for (int current_ic = 0; current_ic < total_ic; current_ic++) {
+    Serial.print(F("CFGA IC "));
+    Serial.print(current_ic + 1,DEC);
+    for (int i = 0; i < 6; i++) {
       Serial.print(F(", 0x"));
-      serial_print_hex((uint8_t)(cfg_pec));
-      Serial.println("\n");
+      serial_print_hex(BMS_IC[current_ic].config.tx_data[i]);
     }
+    Serial.print(F(", Calculated PEC: 0x"));
+    cfg_pec = pec15_calc(6, &BMS_IC[current_ic].config.tx_data[0]);
+    serial_print_hex((uint8_t)(cfg_pec >> 8));
+    Serial.print(F(", 0x"));
+    serial_print_hex((uint8_t)(cfg_pec));
+    Serial.println("\n");
+  }
 }
 
 
- /*!************************************************************
-  \brief Function to print in HEX form
-  @return void
- *************************************************************/ 
-void serial_print_hex(uint8_t data)
-{
-  if (data< 16)
-  {
+/*!************************************************************
+ \brief Function to print in HEX form
+ @return void
+*************************************************************/
+void serial_print_hex(uint8_t data) {
+  if (data < 16) {
     Serial.print("0");
     Serial.print((byte)data,HEX);
   }
