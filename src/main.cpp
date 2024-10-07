@@ -36,6 +36,7 @@ See README file for links to libraries, etc.
 #define DATALOG_ENABLED 1
 
 //FreeRTOS tasks
+#define TWAI_WRITE_REFRESH_RATE 8
 #define VOLTAGE_READ_REFRESH_RATE 9               // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TEMPERATURE_READ_REFRESH_RATE 9           // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TWAI_READ_REFRESH_RATE 1 // every other tick (?)
@@ -118,8 +119,8 @@ void temperatureReadTask(void *pvParameters);
 
 void serialWriteTask(void *pvParameters);
 
-void TWAIWriteTask(void *pvParameters);
 [[noreturn]] void TWAIReadTask(void *pvParameters);
+[[noreturn]] void TWAIWriteTask(void *pvParameters);
 
 //helpers
 
@@ -245,6 +246,27 @@ void temperatureReadTask(void* pvParameters) {
         // limit task refresh rate (every other tick [?])
         vTaskDelay(TWAI_READ_REFRESH_RATE);
     }
+}
+
+
+
+
+
+
+[[noreturn]] void TWAIWriteTask(void* pvParameters)
+{
+    for (;;)
+    {
+        //Check for mutex availability
+        if (xSemaphoreTake(xMutex, 10) == pdTRUE)
+        {
+
+        }
+        // release mutex!
+        xSemaphoreGive(xMutex);
+    }
+    // limit task refresh rate
+    vTaskDelay(TWAI_WRITE_REFRESH_RATE);
 }
 
 /*
