@@ -89,6 +89,34 @@ const uint8_t total_ic =  2; //number of ic's in daisy chain
 uint16_t conv_time = 0; //Set to default value
 cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
+// Mutex
+SemaphoreHandle_t xMutex = NULL;
+
+// Hardware Timer
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+// RTOS Task Handles
+TaskHandle_t xHandleVoltageRead = NULL;
+TaskHandle_t xHandleTempRead = NULL;
+
+TaskHandle_t xHandleSerialWrite = NULL;
+
+TaskHandle_t xHandleTWAIRead = NULL;
+TaskHandle_t xHandleTWAIWrtie = NULL;
+/*
+===============================================================================================
+                                FreeRTOS Task Functions
+===============================================================================================
+*/
+
+void voltageReadTask(void *pvParameters);
+void temperatureReadTask(void *pvParameters);
+
+void serialWriteTask(void *pvParameters);
+
+void TWAIWriteTask(void *pvParameters);
+void TWAIReadTask(void *pvParameters);
+
 /*
 ===============================================================================================
                                     Function Declarations
@@ -128,13 +156,6 @@ void setup() {
   LTC6812_reset_crc_count(total_ic,BMS_IC);
   LTC6812_init_reg_limits(total_ic,BMS_IC);
 }
-
-/*
-===============================================================================================
-                                FreeRTOS Task Functions
-===============================================================================================
-*/
-
 
 
 /*
