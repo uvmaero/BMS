@@ -162,7 +162,7 @@ void read_voltage(){
   conv_time = LTC6812_pollAdc();
   Serial.print("Conversion Time: ");
   Serial.println(conv_time);
-  
+
   //reads cell voltage
   pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);    //read registers, number of ICs, pointer to structure where data will be stored
   if(pec_error == -1) Serial.println("Read Error");    //check for error
