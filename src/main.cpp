@@ -7,7 +7,7 @@ See README file for links to libraries, ect.
 */
 
 #include <Arduino.h>
-#include <spi.h>
+#include <SPI.h>
 #include <LTC6812.h>
 #include <LTC681x.h>
 
@@ -49,7 +49,7 @@ bool PSBits[2]= {false,false}; //!< Digital Redundancy Path Selection//ps-0,1
 
 
 /// GLOBAL Variables ///
-const uint8_t total_ic = 1; //number of ic's in daisy chain
+const uint8_t total_ic = 2; //number of ic's in daisy chain
 uint16_t conv_time;
 cell_asic BMS_IC[total_ic];
 //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
