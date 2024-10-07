@@ -3,6 +3,7 @@
 
 # IntelliJ project files
 .idea
+.pio
 *.iml
 out
 gen
