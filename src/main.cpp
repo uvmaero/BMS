@@ -89,7 +89,6 @@ const uint8_t total_ic =  2; //number of ic's in daisy chain
 uint16_t conv_time = 0; //Set to default value
 cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
-
 /*
 ===============================================================================================
                                     Function Declarations
