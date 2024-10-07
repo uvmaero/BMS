@@ -76,6 +76,7 @@ uint16_t conv_time = 0; //Set to default value - Spenser Oct. 3
 cell_asic BMS_IC[total_ic];
 //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
+
 /*
 ===============================================================================================
                                     Function Declarations
