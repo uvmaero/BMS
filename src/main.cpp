@@ -36,6 +36,8 @@ See README file for links to libraries, etc.
 #define DATALOG_ENABLED 1
 
 //FreeRTOS tasks
+#define TWAI_READ_REFRESH_RATE 1 // every other tick (?)
+
 #define SERIAL_WRITE_REFRESH_RATE 10
 
 
@@ -116,7 +118,7 @@ void temperatureReadTask(void *pvParameters);
 void serialWriteTask(void *pvParameters);
 
 void TWAIWriteTask(void *pvParameters);
-void TWAIReadTask(void *pvParameters);
+[[noreturn]] void TWAIReadTask(void *pvParameters);
 
 //helpers
 
@@ -216,18 +218,6 @@ void loop() {
   }
 }
 
-
-void serialWriteTask(void *pvParameters) {
-    for(;;) {
-        //Check for mutex availability
-        if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-            //LINDUINO function to print cell data to serial monitor
-            print_cells(DATALOG_ENABLED);
-        }
-        xSemaphoreGive(xMutex);
-    }
-    vTaskDelay(SERIAL_WRITE_REFRESH_RATE);
-}
 /*
 ===============================================================================================
                                     Helper Functions
