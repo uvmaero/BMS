@@ -110,7 +110,7 @@ TaskHandle_t xHandleTWAIWrtie = NULL;
 ===============================================================================================
 */
 
-void voltageReadTask(void *pvParameters);
+[[noreturn]] void voltageReadTask(void *pvParameters);
 void temperatureReadTask(void *pvParameters);
 
 void serialWriteTask(void *pvParameters);
