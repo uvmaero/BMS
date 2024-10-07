@@ -35,13 +35,27 @@ See README file for links to libraries, etc.
 
 #define DATALOG_ENABLED 1
 
+//FreeRTOS tasks
+
+
+
+#define TASK_STACK_SIZE 20000 // in bytes
+
+/*
+===============================================================================================
+                                  Global Variables
+===============================================================================================
+*/
+
+/**
+ *  the dataframe that describes the entire state of the battery
+ */
+
 /*
 ===============================================================================================
                                     Configuration
 ===============================================================================================
 */
-
-
 //Under Voltage and Over Voltage Thresholds
 const uint16_t OV_THRESHOLD = 41000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
 const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
@@ -71,10 +85,9 @@ bool PSBits[2]= {false,false}; //!< Digital Redundancy Path Selection//ps-0,1
 ===============================================================================================
 */
 
-const uint8_t total_ic =  2; //number of ic's in daisy chain -- Changed to two as there are to ICs - Spenser Oct. 3
-uint16_t conv_time = 0; //Set to default value - Spenser Oct. 3
-cell_asic BMS_IC[total_ic];
-//cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
+const uint8_t total_ic =  2; //number of ic's in daisy chain
+uint16_t conv_time = 0; //Set to default value
+cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
 
 /*
@@ -162,7 +175,7 @@ void loop() {
 */
 
 
-/***Basic function to read cell voltages****/
+/***Basic function to read cell voltages***/
 void read_voltage(){
   //error detection
   uint8_t pec_error;
