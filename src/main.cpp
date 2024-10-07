@@ -218,18 +218,36 @@ void loop() {
 
       //LINDUINO function to print cell data to serial monitor
       print_cells(DATALOG_ENABLED);
+
+      //release mutex
       xSemaphoreGive(xMutex);
     }
+    // limit task refresh rate
     vTaskDelay(VOLTAGE_READ_REFRESH_RATE);
   }
 }
 
 [[noreturn]] void temperatureReadTask(void* pvParameters) {
   for (;;) {
+    //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+      //release mutex
       xSemaphoreGive(xMutex);
     }
+    // limit task refresh rate
     vTaskDelay(TEMPERATURE_READ_REFRESH_RATE);
+  }
+}
+
+[[noreturn]] void serialWriteTask(void* pvParameters) {
+  for (;;) {
+    //Check for mutex availability
+    if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+      // release mutex
+      xSemaphoreGive(xMutex);
+    }
+    // limit task refresh rate
+    vTaskDelay(SERIAL_WRITE_REFRESH_RATE);
   }
 }
 
@@ -240,7 +258,7 @@ void loop() {
       // release mutex
       xSemaphoreGive(xMutex);
     }
-    // limit task refresh rate (every other tick [?])
+    // limit task refresh rate
     vTaskDelay(TWAI_READ_REFRESH_RATE);
   }
 }
@@ -249,10 +267,9 @@ void loop() {
   for (;;) {
     //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-      // release mutex!
+      // release mutex
       xSemaphoreGive(xMutex);
     }
-
     // limit task refresh rate
     vTaskDelay(TWAI_WRITE_REFRESH_RATE);
   }
