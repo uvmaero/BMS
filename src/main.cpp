@@ -36,6 +36,8 @@ See README file for links to libraries, etc.
 #define DATALOG_ENABLED 1
 
 //FreeRTOS tasks
+#define VOLTAGE_READ_REFRESH_RATE 9               // measured in ticks (RTOS ticks interrupt at 1 kHz)
+#define TEMPERATURE_READ_REFRESH_RATE 9           // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TWAI_READ_REFRESH_RATE 1 // every other tick (?)
 
 #define SERIAL_WRITE_REFRESH_RATE 10
@@ -156,6 +158,9 @@ void setup() {
 
   LTC6812_reset_crc_count(total_ic,BMS_IC);
   LTC6812_init_reg_limits(total_ic,BMS_IC);
+
+  //RTOS initialization
+
 }
 
 
@@ -214,7 +219,19 @@ void loop() {
 
       //LINDUINO function to print cell data to serial monitor
       print_cells(DATALOG_ENABLED);
+      xSemaphoreGive(xMutex);
     }
+    vTaskDelay(VOLTAGE_READ_REFRESH_RATE);
+  }
+}
+
+void temperatureReadTask(void* pvParameters) {
+  for(;;) {
+    if(xSemaphoreTake(xMutex, 10) == pdTRUE) {
+
+      xSemaphoreGive(xMutex);
+    }
+    vTaskDelay(TEMPERATURE_READ_REFRESH_RATE);
   }
 }
 
