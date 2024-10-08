@@ -95,6 +95,10 @@ const uint8_t total_ic = 2; //number of ic's in daisy chain
 uint16_t conv_time = 0; //Set to default value
 cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
+//This controls whether the ADC conversion is considered "finished"
+bool adcConversionInCompleted = false;
+bool voltageDataAvailable = false;
+
 // Mutex
 SemaphoreHandle_t xMutex = NULL;
 
@@ -201,24 +205,31 @@ void loop() {
   for (;;) {
     //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-      //wake up ic
-      wakeup_sleep(total_ic);
+      //If we have data yet to be converted, we don't want to over-write it
+      if (!adcConversionInCompleted) {
+        //wake up ic
+        wakeup_sleep(total_ic);
 
-      //start ADC voltage conversion
-      LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
-      //wait for ADC conversion
-      conv_time = LTC6812_pollAdc();
-      Serial.print("Conversion Time: ");
-      Serial.println(conv_time);
+        //start ADC voltage conversion
+        LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
 
-      //reads cell voltage
-      uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
-      //read registers, number of ICs, pointer to structure where data will be stored
-      if (pec_error == -1) Serial.println("Read Error"); //check for error
+        //We set the conversion to started
+        adcConversionInCompleted = true;
+      }
 
-      //LINDUINO function to print cell data to serial monitor
-      print_cells(DATALOG_ENABLED);
+      //Check to see if the conversion is done
+      const byte result = LTC681x_pladc();
+      //If byte is 0xFF then the conversion is not done
+      result == 0xFF ? adcConversionInCompleted = false : adcConversionInCompleted = true;
 
+      if (adcConversionInCompleted) {
+        uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
+        if (pec_error != 0) Serial.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
+        //We have read the data, conversion is done, redo
+        adcConversionInCompleted = false;
+        //We can read the data, and it won't be undefined
+        voltageDataAvailable = true;
+      }
       //release mutex
       xSemaphoreGive(xMutex);
     }
