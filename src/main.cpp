@@ -11,6 +11,7 @@ See README file for links to libraries, etc.
 ===============================================================================================
 */
 
+#include "data_types.h"
 #include <Arduino.h>
 #include <SPI.h>
 #include <LTC6812.h>
@@ -96,7 +97,7 @@ uint16_t conv_time = 0; //Set to default value
 cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
 
 //This controls whether the ADC conversion is considered "finished"
-bool adcConversionInCompleted = false;
+adc_conv_status adcStatus = NOTSTARTED;
 bool voltageDataAvailable = false;
 
 // Mutex
@@ -206,7 +207,7 @@ void loop() {
     //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
       //If we have data yet to be converted, we don't want to over-write it
-      if (!adcConversionInCompleted) {
+      if (adcStatus == NOTSTARTED) {
         //wake up ic
         wakeup_sleep(total_ic);
 
@@ -214,19 +215,21 @@ void loop() {
         LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
 
         //We set the conversion to started
-        adcConversionInCompleted = true;
+        adcStatus = INPROGRESS;
       }
 
-      //Check to see if the conversion is done
-      const byte result = LTC681x_pladc();
-      //If byte is 0xFF then the conversion is not done
-      result == 0xFF ? adcConversionInCompleted = false : adcConversionInCompleted = true;
+      if (adcStatus == INPROGRESS) {
+        //Check to see if the conversion is done
+        const byte result = LTC681x_pladc();
+        //If byte is 0xFF then the conversion is not done
+        result == 0xFF ? adcStatus = INPROGRESS : adcStatus = COMPLETED;
+      }
 
-      if (adcConversionInCompleted) {
+      if (adcStatus == COMPLETED) {
         uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
         if (pec_error != 0) Serial.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
         //We have read the data, conversion is done, redo
-        adcConversionInCompleted = false;
+        adcStatus = NOTSTARTED;
         //We can read the data, and it won't be undefined
         voltageDataAvailable = true;
       }
