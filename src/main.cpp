@@ -133,7 +133,6 @@ TaskHandle_t xHandleTWAIWrite = NULL;
 
 
 //TODO: convert
-void read_voltage(void);
 void print_cells(uint8_t);
 void print_wrconfig(void);
 void serial_print_hex(uint8_t);
@@ -197,13 +196,15 @@ void setup() {
 */
 
 void loop() {
-  read_voltage();
+  // everything is managed by RTOS, so nothing really happens here!
+  vTaskDelay(1); // prevent watchdog from getting upset
 
   // Set and reset the gpio pins(to drive output on gpio pins)
   /***********************************************************************
    Please ensure you have set the GPIO bits according to your requirement
     in the configuration register.( check the global variable GPIOBITS_A )
   ************************************************************************/
+  /*
   wakeup_sleep(total_ic);
   for (uint8_t current_ic = 0; current_ic < total_ic; current_ic++) {
     LTC6812_set_cfgr(current_ic, BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
@@ -215,6 +216,7 @@ void loop() {
   print_wrconfig();
 
   delay(1000);
+  */
 }
 
 /*
@@ -316,28 +318,8 @@ void loop() {
 ===============================================================================================
 */
 
-/***Basic function to read cell voltages***/
-void read_voltage() {
-  //wake up ic
-  wakeup_sleep(total_ic);
 
-  //start ADC voltage conversion
-  LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
-  //wait for ADC conversion
-  conv_time = LTC6812_pollAdc();
-  Serial.print("Conversion Time: ");
-  Serial.println(conv_time);
-
-  //reads cell voltage
-  uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
-  //read registers, number of ICs, pointer to structure where data will be stored
-  if (pec_error == -1) Serial.println("Read Error"); //check for error
-
-  //LINDUINO function to print cell data to serial monitor
-  print_cells(DATALOG_ENABLED);
-}
-
-
+//TODO: Convert
 /*!************************************************************
   \brief Prints cell voltage to the serial port
    @return void
