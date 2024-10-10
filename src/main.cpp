@@ -145,8 +145,10 @@ void serial_print_hex(uint8_t);
 */
 
 void setup() {
+  // ----------------------- initialize serial connection --------------------- //
   Serial.begin(9600);
-  Serial.println("        ");
+  Serial.printf("\n\n|--- STARTING SETUP ---|\n\n");
+  // -------------------------------------------------------------------------- //
 
   /*** Spi Initializations ***/
   //vspi = new SPIClass(VSPI);
@@ -166,7 +168,28 @@ void setup() {
   LTC6812_reset_crc_count(total_ic, BMS_IC);
   LTC6812_init_reg_limits(total_ic, BMS_IC);
 
-  //RTOS initialization
+  // ------------------------------- Scheduler & Task Status --------------------------------- //
+  // init mutex
+  xMutex = xSemaphoreCreateMutex();
+
+  if (xMutex != NULL) {
+    //Cell read tasks
+    xTaskCreatePinnedToCore(voltageReadTask, "Voltage-Read", TASK_STACK_SIZE,
+                            NULL, tskIDLE_PRIORITY, &xHandleVoltageRead, 0);
+    xTaskCreatePinnedToCore(temperatureReadTask, "Temperature-Read", TASK_STACK_SIZE,
+                            NULL, tskIDLE_PRIORITY, &xHandleTempRead, 0);
+
+    //TWAI tasks
+    xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE,
+                            NULL, 1, &xHandleTWAIRead, 0);
+    xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE,
+                            NULL, 1, &xHandleTWAIWrtie, 1);
+    //Debug task
+    xTaskCreatePinnedToCore(serialWriteTask, "Serial-Write", TASK_STACK_SIZE,
+                            NULL, tskIDLE_PRIORITY, &xHandleSerialWrite, 1);
+
+
+  }
 }
 
 /*
