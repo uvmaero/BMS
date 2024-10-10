@@ -12,6 +12,7 @@ See README file for links to libraries, etc.
 */
 
 #include "data_types.h"
+#include "rtc.h"
 #include <soc/rtc.h>
 #include <Arduino.h>
 #include <SPI.h>
@@ -43,21 +44,12 @@ See README file for links to libraries, etc.
 
 #define VOLTAGE_READ_REFRESH_RATE 9               // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TEMPERATURE_READ_REFRESH_RATE 9           // measured in ticks (RTOS ticks interrupt at 1 kHz)
-#define SERIAL_WRITE_REFRESH_RATE 10              // measured in ticks (RTOS ticks interrupt at 1 kHz)
+#define SERIAL_WRITE_REFRESH_RATE 500              // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
 
 #define TASK_STACK_SIZE 20000 // in bytes
 
 #define SERIAL_DEBUG Serial
-/*
-===============================================================================================
-                                  Global Variables
-===============================================================================================
-*/
-
-/**
- *  the dataframe that describes the entire state of the battery
- */
 
 /*
 ===============================================================================================
@@ -94,9 +86,20 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 ===============================================================================================
 */
 
-const uint8_t total_ic = 2; //number of ic's in daisy chain
-uint16_t conv_time = 0; //Set to default value
-cell_asic BMS_IC[total_ic]; //cell_asic ic_pt; //structure defined in LTC681x.h --> where most data is stored
+struct cell_status {
+  struct CellData {
+    uint8_t total_ic = 0; //number of ic's in daisy chain
+  } cellData;
+
+  //Voltages
+  struct VoltageStatus {
+    cell_asic BMS_IC[2]{};
+    uint64_t voltageStamp = 0;
+  } voltageStatus;
+
+  //Temperature
+  //TODO
+} cellStatus;
 
 //This controls whether the ADC conversion is considered "finished"
 adc_conv_status adcStatus = NOTSTARTED;
@@ -134,6 +137,7 @@ TaskHandle_t xHandleTWAIWrite = nullptr;
 //helpers
 
 String TaskStateToString(eTaskState state);
+String msToMSms(uint64_t ms);
 
 //TODO: convert
 void print_cells(uint8_t);
@@ -161,14 +165,15 @@ void setup() {
 
   /*** LTC6812 Initializations ***/
   //initialize configuration registers
-  LTC6812_init_cfg(total_ic, BMS_IC);
-  LTC6812_init_cfgb(total_ic, BMS_IC);
+  LTC6812_init_cfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+  LTC6812_init_cfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
   //set registers for each IC
-  LTC6812_set_cfgr(1, BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-  LTC6812_set_cfgrb(1, BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+  LTC6812_set_cfgr(1, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A,
+                   DCCBITS_A, DCTOBITS, UV, OV);
+  LTC6812_set_cfgrb(1, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
 
-  LTC6812_reset_crc_count(total_ic, BMS_IC);
-  LTC6812_init_reg_limits(total_ic, BMS_IC);
+  LTC6812_reset_crc_count(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+  LTC6812_init_reg_limits(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
 
   // ------------------------------- Scheduler & Task Status --------------------------------- //
   // init mutex
@@ -264,14 +269,14 @@ void loop() {
     in the configuration register.( check the global variable GPIOBITS_A )
   ************************************************************************/
   /*
-  wakeup_sleep(total_ic);
-  for (uint8_t current_ic = 0; current_ic < total_ic; current_ic++) {
-    LTC6812_set_cfgr(current_ic, BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-    LTC6812_set_cfgrb(current_ic, BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+  wakeup_sleep(cellStatus.cellData.total_ic);
+  for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
+    LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+    LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
   }
-  wakeup_idle(total_ic);
-  LTC6812_wrcfg(total_ic, BMS_IC);
-  LTC6812_wrcfgb(total_ic, BMS_IC);
+  wakeup_idle(cellStatus.cellData.total_ic);
+  LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+  LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
   print_wrconfig();
 
   delay(1000);
@@ -292,10 +297,16 @@ void loop() {
       //If we have data yet to be converted, we don't want to over-write it
       if (adcStatus == NOTSTARTED) {
         //wake up ic
-        wakeup_sleep(total_ic);
+        wakeup_sleep(cellStatus.cellData.total_ic);
 
         //start ADC voltage conversion
-        LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL); //normal operation, discharge disabled, all cell channels
+        //normal operation, discharge disabled, all cell channels
+        LTC6812_adcv(MD_7KHZ_3KHZ,DCP_DISABLED,CELL_CH_ALL);
+
+        //record the timestamp when the data was snapshotted and convert to milliseconds
+        cellStatus.voltageStatus.voltageStamp = esp_rtc_get_time_us() / 1000;
+        //just in case, to avoid duplicate data, ensure that data collection does to try to operate again
+        voltageDataAvailable = false;
 
         //We set the conversion to started
         adcStatus = INPROGRESS;
@@ -309,7 +320,8 @@ void loop() {
       }
 
       if (adcStatus == COMPLETED) {
-        const uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
+        const uint8_t pec_error = LTC6812_rdcv(REG_ALL, cellStatus.cellData.total_ic,
+                                               cellStatus.voltageStatus.BMS_IC);
         if (pec_error != 0) {
           if (prevErr != pec_error)
             SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
@@ -344,6 +356,18 @@ void loop() {
   for (;;) {
     //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+      //Don't try and read data that may be out-of date or undefined
+      if (voltageDataAvailable) {
+        //9 for time, ie. 20:43.476
+        String dataFrame = "         --------------------\n";
+        dataFrame += ("         |" + msToMSms(cellStatus.voltageStatus.voltageStamp) + "|" /* +  temperature */ + '\n')
+          .c_str();
+        dataFrame += "-----------------------------\n";
+        dataFrame += "| cell # | voltage | tempera |\n";
+        //TODO data
+
+        SERIAL_DEBUG.println(dataFrame);
+      }
       // release mutex
       xSemaphoreGive(xMutex);
     }
@@ -412,30 +436,49 @@ String TaskStateToString(const eTaskState state) {
   return stateStr;
 }
 
+String msToMSms(uint64_t ms) {
+  String MSms = "";
+
+  const uint minutes = ms / 60000;
+  ms = ms % 60000;
+
+  const uint seconds = ms / 1000;
+  ms = ms % 1000;
+
+  //TODO: Make minutes and seconds always take up two slots
+
+  MSms.concat(minutes);
+  MSms.concat(':');
+  MSms.concat(seconds);
+  MSms.concat('.');
+  MSms.concat(ms);
+  return MSms;
+}
+
 //TODO: Convert
 /*!************************************************************
   \brief Prints cell voltage to the serial port
    @return void
  *************************************************************/
 void print_cells(uint8_t datalog_en) {
-  for (int current_ic = 0; current_ic < total_ic; current_ic++) {
+  for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
     if (datalog_en == 0) {
       SERIAL_DEBUG.print(" IC ");
       SERIAL_DEBUG.print(current_ic + 1,DEC);
       SERIAL_DEBUG.print(", ");
-      for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
+      for (int i = 0; i < cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels; i++) {
         SERIAL_DEBUG.print(" C");
         SERIAL_DEBUG.print(i + 1,DEC);
         SERIAL_DEBUG.print(":");
-        SERIAL_DEBUG.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
+        SERIAL_DEBUG.print(cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
         SERIAL_DEBUG.print(",");
       }
       SERIAL_DEBUG.println();
     }
     else {
       SERIAL_DEBUG.print(" Cells, ");
-      for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
-        SERIAL_DEBUG.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
+      for (int i = 0; i < cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels; i++) {
+        SERIAL_DEBUG.print(cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
         SERIAL_DEBUG.print(",");
       }
     }
@@ -452,15 +495,15 @@ void print_cells(uint8_t datalog_en) {
 void print_wrconfig(void) {
   int cfg_pec;
   SERIAL_DEBUG.println(F("Written Configuration A Register: "));
-  for (int current_ic = 0; current_ic < total_ic; current_ic++) {
+  for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
     SERIAL_DEBUG.print(F("CFGA IC "));
     SERIAL_DEBUG.print(current_ic + 1,DEC);
     for (int i = 0; i < 6; i++) {
       SERIAL_DEBUG.print(F(", 0x"));
-      serial_print_hex(BMS_IC[current_ic].config.tx_data[i]);
+      serial_print_hex(cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[i]);
     }
     SERIAL_DEBUG.print(F(", Calculated PEC: 0x"));
-    cfg_pec = pec15_calc(6, &BMS_IC[current_ic].config.tx_data[0]);
+    cfg_pec = pec15_calc(6, &cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[0]);
     serial_print_hex((uint8_t)(cfg_pec >> 8));
     SERIAL_DEBUG.print(F(", 0x"));
     serial_print_hex((uint8_t)(cfg_pec));
