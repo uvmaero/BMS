@@ -249,7 +249,7 @@ void loop() {
       }
 
       if (adcStatus == COMPLETED) {
-        uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
+        const uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
         if (pec_error != 0) Serial.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
         //We have read the data, conversion is done, redo
         adcStatus = NOTSTARTED;
