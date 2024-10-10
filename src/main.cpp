@@ -12,6 +12,7 @@ See README file for links to libraries, etc.
 */
 
 #include "data_types.h"
+#include <soc/rtc.h>
 #include <Arduino.h>
 #include <SPI.h>
 #include <LTC6812.h>
@@ -47,6 +48,7 @@ See README file for links to libraries, etc.
 
 #define TASK_STACK_SIZE 20000 // in bytes
 
+#define SERIAL_DEBUG Serial
 /*
 ===============================================================================================
                                   Global Variables
@@ -101,19 +103,19 @@ adc_conv_status adcStatus = NOTSTARTED;
 bool voltageDataAvailable = false;
 
 // Mutex
-SemaphoreHandle_t xMutex = NULL;
+SemaphoreHandle_t xMutex = nullptr;
 
 // Hardware Timer
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
 // RTOS Task Handles
-TaskHandle_t xHandleVoltageRead = NULL;
-TaskHandle_t xHandleTempRead = NULL;
+TaskHandle_t xHandleVoltageRead = nullptr;
+TaskHandle_t xHandleTempRead = nullptr;
 
-TaskHandle_t xHandleSerialWrite = NULL;
+TaskHandle_t xHandleSerialWrite = nullptr;
 
-TaskHandle_t xHandleTWAIRead = NULL;
-TaskHandle_t xHandleTWAIWrite = NULL;
+TaskHandle_t xHandleTWAIRead = nullptr;
+TaskHandle_t xHandleTWAIWrite = nullptr;
 
 /*
 ===============================================================================================
@@ -131,10 +133,11 @@ TaskHandle_t xHandleTWAIWrite = NULL;
 
 //helpers
 
+String TaskStateToString(eTaskState state);
 
 //TODO: convert
 void print_cells(uint8_t);
-void print_wrconfig(void);
+void print_wrconfig();
 void serial_print_hex(uint8_t);
 
 /*
@@ -145,8 +148,8 @@ void serial_print_hex(uint8_t);
 
 void setup() {
   // ----------------------- initialize serial connection --------------------- //
-  Serial.begin(9600);
-  Serial.printf("\n\n|--- STARTING SETUP ---|\n\n");
+  SERIAL_DEBUG.begin(9600);
+  SERIAL_DEBUG.printf("\n\n|--- STARTING SETUP ---|\n\n");
   // -------------------------------------------------------------------------- //
 
   /*** Spi Initializations ***/
@@ -171,22 +174,75 @@ void setup() {
   // init mutex
   xMutex = xSemaphoreCreateMutex();
 
-  if (xMutex != NULL) {
+  if (xMutex != nullptr) {
     //Cell read tasks
     xTaskCreatePinnedToCore(voltageReadTask, "Voltage-Read", TASK_STACK_SIZE,
-                            NULL, tskIDLE_PRIORITY, &xHandleVoltageRead, 0);
+                            nullptr, tskIDLE_PRIORITY, &xHandleVoltageRead, 0);
     xTaskCreatePinnedToCore(temperatureReadTask, "Temperature-Read", TASK_STACK_SIZE,
-                            NULL, tskIDLE_PRIORITY, &xHandleTempRead, 0);
+                            nullptr, tskIDLE_PRIORITY, &xHandleTempRead, 0);
 
     //TWAI tasks
     xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE,
-                            NULL, 1, &xHandleTWAIRead, 0);
+                            nullptr, 1, &xHandleTWAIRead, 0);
     xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE,
-                            NULL, 1, &xHandleTWAIWrite, 1);
+                            nullptr, 1, &xHandleTWAIWrite, 1);
     //Debug task
-    xTaskCreatePinnedToCore(serialWriteTask, "Serial-Write", TASK_STACK_SIZE,
-                            NULL, tskIDLE_PRIORITY, &xHandleSerialWrite, 1);
+    xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write", TASK_STACK_SIZE,
+                            nullptr, tskIDLE_PRIORITY, &xHandleSerialWrite, 1);
   }
+  else {
+    SERIAL_DEBUG.printf("FAILED TO INIT MUTEX!\nHALTING OPERATIONS!");
+    // ReSharper disable once CppDFAEndlessLoop
+    while (true);
+  }
+
+  SERIAL_DEBUG.printf("\nTask Status:\n");
+  //Read
+  if (xHandleVoltageRead != nullptr)
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+  else
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+
+  if (xHandleTempRead != nullptr)
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleTempRead)).c_str());
+  else
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+
+  //Serial
+  if (xHandleSerialWrite != nullptr)
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleSerialWrite)).c_str());
+  else
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+
+  //TWAI
+  if (xHandleVoltageRead != nullptr)
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+  else
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+
+  if (xHandleVoltageRead != nullptr)
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+  else
+    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+
+  // scheduler status
+  if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+    SERIAL_DEBUG.printf("\nScheduler Status: RUNNING\n");
+
+    // clock frequency
+    rtc_cpu_freq_config_t clock_config;
+    rtc_clk_cpu_freq_get_config(&clock_config);
+    SERIAL_DEBUG.printf("CPU Frequency: %dMHz\n", clock_config.freq_mhz);
+  }
+  else {
+    SERIAL_DEBUG.printf("\nScheduler STATUS: FAILED\nHALTING OPERATIONS");
+    // ReSharper disable once CppDFAEndlessLoop
+    while (true);
+  }
+  SERIAL_DEBUG.printf("\n\n|--- END SETUP ---|\n\n");
+  // ---------------------------------------------------------------------------------------- //
 }
 
 /*
@@ -250,7 +306,8 @@ void loop() {
 
       if (adcStatus == COMPLETED) {
         const uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
-        if (pec_error != 0) Serial.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
+        if (pec_error != 0)
+          SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
         //We have read the data, conversion is done, redo
         adcStatus = NOTSTARTED;
         //We can read the data, and it won't be undefined
@@ -318,6 +375,35 @@ void loop() {
 ===============================================================================================
 */
 
+String TaskStateToString(const eTaskState state) {
+  // init
+  String stateStr;
+
+  // get state
+  switch (state) {
+  case eReady:
+    stateStr = "RUNNING";
+    break;
+
+  case eBlocked:
+    stateStr = "BLOCKED";
+    break;
+
+  case eSuspended:
+    stateStr = "SUSPENDED";
+    break;
+
+  case eDeleted:
+    stateStr = "DELETED";
+    break;
+
+  default:
+    stateStr = "ERROR";
+    break;
+  }
+
+  return stateStr;
+}
 
 //TODO: Convert
 /*!************************************************************
@@ -327,27 +413,27 @@ void loop() {
 void print_cells(uint8_t datalog_en) {
   for (int current_ic = 0; current_ic < total_ic; current_ic++) {
     if (datalog_en == 0) {
-      Serial.print(" IC ");
-      Serial.print(current_ic + 1,DEC);
-      Serial.print(", ");
+      SERIAL_DEBUG.print(" IC ");
+      SERIAL_DEBUG.print(current_ic + 1,DEC);
+      SERIAL_DEBUG.print(", ");
       for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
-        Serial.print(" C");
-        Serial.print(i + 1,DEC);
-        Serial.print(":");
-        Serial.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
-        Serial.print(",");
+        SERIAL_DEBUG.print(" C");
+        SERIAL_DEBUG.print(i + 1,DEC);
+        SERIAL_DEBUG.print(":");
+        SERIAL_DEBUG.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
+        SERIAL_DEBUG.print(",");
       }
-      Serial.println();
+      SERIAL_DEBUG.println();
     }
     else {
-      Serial.print(" Cells, ");
+      SERIAL_DEBUG.print(" Cells, ");
       for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
-        Serial.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
-        Serial.print(",");
+        SERIAL_DEBUG.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
+        SERIAL_DEBUG.print(",");
       }
     }
   }
-  Serial.println("\n");
+  SERIAL_DEBUG.println("\n");
 }
 
 
@@ -358,20 +444,20 @@ void print_cells(uint8_t datalog_en) {
  ********************************************************************************/
 void print_wrconfig(void) {
   int cfg_pec;
-  Serial.println(F("Written Configuration A Register: "));
+  SERIAL_DEBUG.println(F("Written Configuration A Register: "));
   for (int current_ic = 0; current_ic < total_ic; current_ic++) {
-    Serial.print(F("CFGA IC "));
-    Serial.print(current_ic + 1,DEC);
+    SERIAL_DEBUG.print(F("CFGA IC "));
+    SERIAL_DEBUG.print(current_ic + 1,DEC);
     for (int i = 0; i < 6; i++) {
-      Serial.print(F(", 0x"));
+      SERIAL_DEBUG.print(F(", 0x"));
       serial_print_hex(BMS_IC[current_ic].config.tx_data[i]);
     }
-    Serial.print(F(", Calculated PEC: 0x"));
+    SERIAL_DEBUG.print(F(", Calculated PEC: 0x"));
     cfg_pec = pec15_calc(6, &BMS_IC[current_ic].config.tx_data[0]);
     serial_print_hex((uint8_t)(cfg_pec >> 8));
-    Serial.print(F(", 0x"));
+    SERIAL_DEBUG.print(F(", 0x"));
     serial_print_hex((uint8_t)(cfg_pec));
-    Serial.println("\n");
+    SERIAL_DEBUG.println("\n");
   }
 }
 
@@ -382,9 +468,9 @@ void print_wrconfig(void) {
 *************************************************************/
 void serial_print_hex(uint8_t data) {
   if (data < 16) {
-    Serial.print("0");
-    Serial.print((byte)data,HEX);
+    SERIAL_DEBUG.print("0");
+    SERIAL_DEBUG.print((byte)data,HEX);
   }
   else
-    Serial.print((byte)data,HEX);
+    SERIAL_DEBUG.print((byte)data,HEX);
 }
