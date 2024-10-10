@@ -199,33 +199,36 @@ void setup() {
   SERIAL_DEBUG.printf("\nTask Status:\n");
   //Read
   if (xHandleVoltageRead != nullptr)
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+    SERIAL_DEBUG.printf("VOLTAGE READ TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
   else
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+    SERIAL_DEBUG.printf("VOLTAGE READ TASK STATUS: DISABLED!\n");
 
   if (xHandleTempRead != nullptr)
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleTempRead)).c_str());
+    SERIAL_DEBUG.printf("TEMPERATURE READ TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleTempRead)).c_str());
   else
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+    SERIAL_DEBUG.printf("TEMPERATURE READ TASK STATUS: DISABLED!\n");
 
   //Serial
   if (xHandleSerialWrite != nullptr)
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleSerialWrite)).c_str());
+    SERIAL_DEBUG.printf("SERIAL Write TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleSerialWrite)).c_str());
   else
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+    SERIAL_DEBUG.printf("SERIAL Write TASK STATUS: DISABLED!\n");
 
   //TWAI
-  if (xHandleVoltageRead != nullptr)
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n",
-                        TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+  if (xHandleTWAIRead != nullptr)
+    SERIAL_DEBUG.printf("TWAI READ TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleTWAIRead)).c_str());
   else
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+    SERIAL_DEBUG.printf("TWAI READ TASK STATUS: DISABLED!\n");
 
-  if (xHandleVoltageRead != nullptr)
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: %s \n",
-                        TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+  if (xHandleTWAIWrite != nullptr)
+    SERIAL_DEBUG.printf("TWAI WRITE TASK STATUS: %s \n",
+                        TaskStateToString(eTaskGetState(xHandleTWAIWrite)).c_str());
   else
-    SERIAL_DEBUG.printf("I/O READ TASK STATUS: DISABLED!\n");
+    SERIAL_DEBUG.printf("TWAI WRITE TASK STATUS: DISABLED!\n");
 
   // scheduler status
   if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
@@ -282,6 +285,7 @@ void loop() {
 */
 
 [[noreturn]] void voltageReadTask(void* pvParameters) {
+  uint8_t prevErr = 0;
   for (;;) {
     //Check for mutex availability
     if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
@@ -306,8 +310,11 @@ void loop() {
 
       if (adcStatus == COMPLETED) {
         const uint8_t pec_error = LTC6812_rdcv(REG_ALL, total_ic, BMS_IC);
-        if (pec_error != 0)
-          SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
+        if (pec_error != 0) {
+          if (prevErr != pec_error)
+            SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
+          prevErr = pec_error;
+        }
         //We have read the data, conversion is done, redo
         adcStatus = NOTSTARTED;
         //We can read the data, and it won't be undefined
