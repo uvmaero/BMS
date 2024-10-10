@@ -113,7 +113,7 @@ TaskHandle_t xHandleTempRead = NULL;
 TaskHandle_t xHandleSerialWrite = NULL;
 
 TaskHandle_t xHandleTWAIRead = NULL;
-TaskHandle_t xHandleTWAIWrtie = NULL;
+TaskHandle_t xHandleTWAIWrite = NULL;
 
 /*
 ===============================================================================================
@@ -183,12 +183,10 @@ void setup() {
     xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE,
                             NULL, 1, &xHandleTWAIRead, 0);
     xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE,
-                            NULL, 1, &xHandleTWAIWrtie, 1);
+                            NULL, 1, &xHandleTWAIWrite, 1);
     //Debug task
     xTaskCreatePinnedToCore(serialWriteTask, "Serial-Write", TASK_STACK_SIZE,
                             NULL, tskIDLE_PRIORITY, &xHandleSerialWrite, 1);
-
-
   }
 }
 
