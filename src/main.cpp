@@ -15,9 +15,11 @@ See README file for links to libraries, etc.
 #include "rtc.h"
 #include <soc/rtc.h>
 #include <Arduino.h>
+#include <iomanip>
 #include <SPI.h>
 #include <LTC6812.h>
 #include <LTC681x.h>
+#include <sstream>
 
 /*
 ===============================================================================================
@@ -437,7 +439,7 @@ String TaskStateToString(const eTaskState state) {
 }
 
 String msToMSms(uint64_t ms) {
-  String MSms = "";
+  std::ostringstream Msms;
 
   const uint minutes = ms / 60000;
   ms = ms % 60000;
@@ -445,14 +447,9 @@ String msToMSms(uint64_t ms) {
   const uint seconds = ms / 1000;
   ms = ms % 1000;
 
-  //TODO: Make minutes and seconds always take up two slots
+  Msms << std::setw(2) << minutes << ':' << std::setw(2) << seconds << '.' << std::setw(3) << ms;
 
-  MSms.concat(minutes);
-  MSms.concat(':');
-  MSms.concat(seconds);
-  MSms.concat('.');
-  MSms.concat(ms);
-  return MSms;
+  return Msms.str;
 }
 
 //TODO: Convert
