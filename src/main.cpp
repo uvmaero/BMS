@@ -343,6 +343,17 @@ void loop() {
 }
 
 [[noreturn]] void temperatureReadTask(void *pvParameters) {
+
+    /*
+     * Useful functions all start with LTC681x_
+     * rdaux(): reads and parses auxiliary registers
+     * rdaux_reg(): read raw data
+     * clraux(): clears aux
+     * there was one more about testing or something idk
+     * seemed lame
+     * file:///Users/owencook/Desktop/AERO/BMS/Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
+     */
+
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
