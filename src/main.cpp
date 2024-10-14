@@ -358,15 +358,37 @@ void loop() {
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
             // Don't try and read data that may be out-of date or undefined
             if (voltageDataAvailable) {
-                // 9 for time, ie. 20:43.476
-                String dataFrame = "         --------------------\n";
-                dataFrame.concat("         |" + msToMSms(cellStatus.voltageStatus.voltageStamp) +
-                                 "|" /* +  temperature */ + '\n');
+                // Build the data frame string
+                String dataFrame = "-----------------------------\n";
+                // Add timestamp
+                dataFrame.concat("| " + msToMSms(cellStatus.voltageStatus.voltageStamp) + " |\n");
                 dataFrame.concat("-----------------------------\n");
+                // Add header line
                 dataFrame.concat("| cell # | voltage | tempera |\n");
-                // TODO data
 
+                // Iterate over each IC
+                for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
+                    int cell_channels = cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels;
+
+                    // Iterate over each cell channel
+                    for (int i = 0; i < cell_channels; i++) {
+                        // Calculate the global cell number
+                        int cell_number = current_ic * cell_channels + i + 1;
+
+                        // Get the cell voltage and convert it to volts
+                        float voltage = cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001;
+
+                        // Since temperature data is not available yet, we'll use "N/A"
+                        // Format the line with fixed-width columns
+                        char line[50];
+                        snprintf(line, sizeof(line), "| %6d | %7.4f | %7s |\n", cell_number, voltage, "N/A");
+
+                        // Add the formatted line to the data frame
+                        dataFrame.concat(line);
+                    }
+                }
                 SERIAL_DEBUG.println(dataFrame);
+                voltageDataAvailable = false;
             }
             // release mutex
             xSemaphoreGive(xMutex);
@@ -447,7 +469,7 @@ String msToMSms(uint64_t ms) {
 
     Msms << std::setw(2) << minutes << ':' << std::setw(2) << seconds << '.' << std::setw(3) << ms;
 
-    return Msms.str;
+    return String(Msms.str().c_str());
 }
 
 // TODO: Convert
