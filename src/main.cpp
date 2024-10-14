@@ -53,6 +53,8 @@ See README file for links to libraries, etc.
 
 #define SERIAL_DEBUG Serial
 
+#define TOTAL_IC 2
+
 /*
 ===============================================================================================
                                     Configuration
@@ -90,12 +92,12 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 
 struct cell_status {
     struct CellData {
-        uint8_t total_ic = 0; // number of ic's in daisy chain
+        uint8_t total_ic = TOTAL_IC; // number of ic's in daisy chain
     } cellData;
 
     // Voltages
     struct VoltageStatus {
-        cell_asic BMS_IC[2]{};
+        cell_asic BMS_IC[TOTAL_IC]{};
         uint64_t voltageStamp = 0;
     } voltageStatus;
 
@@ -268,11 +270,12 @@ void loop() {
      Please ensure you have set the GPIO bits according to your requirement
       in the configuration register.( check the global variable GPIOBITS_A )
     ************************************************************************/
-    /*
+
     wakeup_sleep(cellStatus.cellData.total_ic);
     for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-      LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV,
-    OV); LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS,
+                         UV, OV);
+        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
     }
     wakeup_idle(cellStatus.cellData.total_ic);
     LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
@@ -280,7 +283,6 @@ void loop() {
     print_wrconfig();
 
     delay(1000);
-    */
 }
 
 /*
@@ -480,14 +482,14 @@ String TaskStateToString(const eTaskState state) {
 }
 
 String msToMSms(uint64_t ms) {
-    uint32_t minutes = ms / 60000;
+    const uint minutes = ms / 60000;
     ms = ms % 60000;
 
-    uint32_t seconds = ms / 1000;
-    uint32_t milliseconds = ms % 1000;
+    const uint seconds = ms / 1000;
+    ms = ms % 1000;
 
     char buffer[16];
-    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03lu", minutes, seconds, milliseconds);
+    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03lu", minutes, seconds, ms);
 
     return String(buffer);
 }
