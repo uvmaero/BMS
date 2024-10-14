@@ -551,10 +551,7 @@ String msToMSms(uint64_t ms) {
 }
 
 // TODO: Convert
-/*!************************************************************
-  \brief Prints cell voltage to the serial port
-   @return void
- *************************************************************/
+
 void print_cells(uint8_t datalog_en) {
     for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
         if (datalog_en == 0) {
