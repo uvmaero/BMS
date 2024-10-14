@@ -491,7 +491,7 @@ String msToMSms(uint64_t ms) {
     char buffer[16];
     snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03lu", minutes, seconds, ms);
 
-    return String(buffer);
+    return {buffer};
 }
 
 // TODO: Convert
