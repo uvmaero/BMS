@@ -356,15 +356,29 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-            // Don't try and read data that may be out-of date or undefined
+            // Don't try and read data that may be out-of-date or undefined
             if (voltageDataAvailable) {
                 // Build the data frame string
-                String dataFrame = "-----------------------------\n";
-                // Add timestamp
-                dataFrame.concat("| " + msToMSms(cellStatus.voltageStatus.voltageStamp) + " |\n");
-                dataFrame.concat("-----------------------------\n");
-                // Add header line
-                dataFrame.concat("| cell # | voltage | tempera |\n");
+                String dataFrame = "";
+                // Create top separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Get the timestamp
+                String timestamp = msToMSms(cellStatus.voltageStatus.voltageStamp);
+
+                // Build header row with timestamp in second and third columns
+                char headerLine[64];
+                snprintf(headerLine, sizeof(headerLine), "|          | %9s | %9s |\n", timestamp.c_str(), "12:34.456");
+                dataFrame.concat(headerLine);
+
+                // Add separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Add column headers
+                dataFrame.concat("| cell #   | voltage   | temp      |\n");
+
+                // Add separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
 
                 // Iterate over each IC
                 for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
@@ -380,20 +394,27 @@ void loop() {
 
                         // Since temperature data is not available yet, we'll use "N/A"
                         // Format the line with fixed-width columns
-                        char line[50];
-                        snprintf(line, sizeof(line), "| %6d | %7.4f | %7s |\n", cell_number, voltage, "N/A");
+                        char line[64];
+                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n", cell_number, voltage, "N/A");
 
                         // Add the formatted line to the data frame
                         dataFrame.concat(line);
                     }
                 }
+
+                // Add bottom separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Print the data frame to the serial port
                 SERIAL_DEBUG.println(dataFrame);
+
+                // Reset the voltage data availability flag
                 voltageDataAvailable = false;
             }
-            // release mutex
+            // Release mutex
             xSemaphoreGive(xMutex);
         }
-        // limit task refresh rate
+        // Limit task refresh rate
         vTaskDelay(SERIAL_WRITE_REFRESH_RATE);
     }
 }
@@ -459,17 +480,16 @@ String TaskStateToString(const eTaskState state) {
 }
 
 String msToMSms(uint64_t ms) {
-    std::ostringstream Msms;
-
-    const uint minutes = ms / 60000;
+    uint32_t minutes = ms / 60000;
     ms = ms % 60000;
 
-    const uint seconds = ms / 1000;
-    ms = ms % 1000;
+    uint32_t seconds = ms / 1000;
+    uint32_t milliseconds = ms % 1000;
 
-    Msms << std::setw(2) << minutes << ':' << std::setw(2) << seconds << '.' << std::setw(3) << ms;
+    char buffer[16];
+    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03lu", minutes, seconds, milliseconds);
 
-    return String(Msms.str().c_str());
+    return String(buffer);
 }
 
 // TODO: Convert
