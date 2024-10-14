@@ -19,7 +19,9 @@ See README file for links to libraries, etc.
 #include <soc/rtc.h>
 #include <sstream>
 #include "data_types.h"
+#include "driver/twai.h"
 #include "rtc.h"
+
 
 /*
 ===============================================================================================
@@ -53,6 +55,10 @@ See README file for links to libraries, etc.
 
 #define SERIAL_DEBUG Serial
 
+// TWAI
+#define TWAI_RX_PIN 42
+#define TWAI_TX_PIN 41
+
 /*
 ===============================================================================================
                                     Configuration
@@ -81,6 +87,7 @@ bool DCTOBITS[4] = {true, false, true, false}; //!< Discharge time value //Dcto 
 bool FDRF = false; //!< Force Digital Redundancy Failure Bit
 bool DTMEN = true; //!< Enable Discharge Timer Monitor
 bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
+
 
 /*
 ===============================================================================================
@@ -121,6 +128,13 @@ TaskHandle_t xHandleSerialWrite = nullptr;
 
 TaskHandle_t xHandleTWAIRead = nullptr;
 TaskHandle_t xHandleTWAIWrite = nullptr;
+
+// TWAI
+static const twai_general_config_t can_general_config =
+    TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TWAI_TX_PIN, (gpio_num_t)TWAI_RX_PIN, TWAI_MODE_NORMAL);
+static const twai_timing_config_t can_timing_config = TWAI_TIMING_CONFIG_500KBITS();
+static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+
 
 /*
 ===============================================================================================
@@ -175,6 +189,34 @@ void setup() {
 
     LTC6812_reset_crc_count(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
     LTC6812_init_reg_limits(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+
+    bool twaiActive;
+    // install TWAI driver
+    if (twai_driver_install(&can_general_config, &can_timing_config, &can_filter_config) == ESP_OK) {
+        SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ SUCCESS ]\n");
+
+        // start CAN bus
+        if (twai_start() == ESP_OK) {
+            SERIAL_DEBUG.printf("TWAI INIT [ SUCCESS ]\n");
+            twai_reconfigure_alerts(TWAI_ALERT_ALL, NULL);
+
+            twaiActive = true;
+        }
+
+        else {
+            SERIAL_DEBUG.printf("TWAI INIT [ FAILED ]\n");
+        }
+    }
+
+    else {
+        SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ FAILED ]\n");
+    }
+
+
+    if (twaiActive) {
+        xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIRead, 0);
+        xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIWrite, 1);
+    }
 
     // ------------------------------- Scheduler & Task Status --------------------------------- //
     // init mutex
@@ -399,6 +441,10 @@ void loop() {
         vTaskDelay(TWAI_WRITE_REFRESH_RATE);
     }
 }
+
+// -------------------------------------------------------------------------- //
+
+// --------------------- initialize TWAI Controller -------------------------- //
 
 /*
 ===============================================================================================
