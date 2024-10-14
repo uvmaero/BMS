@@ -22,7 +22,6 @@ See README file for links to libraries, etc.
 #include "driver/twai.h"
 #include "rtc.h"
 
-
 /*
 ===============================================================================================
                                     Definitions
@@ -58,6 +57,8 @@ See README file for links to libraries, etc.
 // TWAI
 #define TWAI_RX_PIN 42
 #define TWAI_TX_PIN 41
+
+#define TOTAL_IC 2
 
 /*
 ===============================================================================================
@@ -97,12 +98,12 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 
 struct cell_status {
     struct CellData {
-        uint8_t total_ic = 0; // number of ic's in daisy chain
+        uint8_t total_ic = TOTAL_IC; // number of ic's in daisy chain
     } cellData;
 
     // Voltages
     struct VoltageStatus {
-        cell_asic BMS_IC[2]{};
+        cell_asic BMS_IC[TOTAL_IC]{};
         uint64_t voltageStamp = 0;
     } voltageStatus;
 
@@ -310,11 +311,12 @@ void loop() {
      Please ensure you have set the GPIO bits according to your requirement
       in the configuration register.( check the global variable GPIOBITS_A )
     ************************************************************************/
-    /*
+
     wakeup_sleep(cellStatus.cellData.total_ic);
     for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-      LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV,
-    OV); LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS,
+                         UV, OV);
+        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
     }
     wakeup_idle(cellStatus.cellData.total_ic);
     LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
@@ -322,7 +324,6 @@ void loop() {
     print_wrconfig();
 
     delay(1000);
-    */
 }
 
 /*
@@ -383,6 +384,17 @@ void loop() {
 }
 
 [[noreturn]] void temperatureReadTask(void *pvParameters) {
+
+    /*
+     * Useful functions all start with LTC681x_
+     * rdaux(): reads and parses auxiliary registers
+     * rdaux_reg(): read raw data
+     * clraux(): clears aux
+     * there was one more about testing or something idk
+     * seemed lame
+     * file:///Users/owencook/Desktop/AERO/BMS/Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
+     */
+
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
@@ -398,22 +410,65 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-            // Don't try and read data that may be out-of date or undefined
+            // Don't try and read data that may be out-of-date or undefined
             if (voltageDataAvailable) {
-                // 9 for time, ie. 20:43.476
-                String dataFrame = "         --------------------\n";
-                dataFrame.concat("         |" + msToMSms(cellStatus.voltageStatus.voltageStamp) +
-                                 "|" /* +  temperature */ + '\n');
-                dataFrame.concat("-----------------------------\n");
-                dataFrame.concat("| cell # | voltage | tempera |\n");
-                // TODO data
+                // Build the data frame string
+                String dataFrame = "";
+                // Create top separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
 
+                // Get the timestamp
+                String timestamp = msToMSms(cellStatus.voltageStatus.voltageStamp);
+
+                // Build header row with timestamp in second and third columns
+                char headerLine[64];
+                snprintf(headerLine, sizeof(headerLine), "|          | %9s | %9s |\n", timestamp.c_str(), "12:34.456");
+                dataFrame.concat(headerLine);
+
+                // Add separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Add column headers
+                dataFrame.concat("| cell #   | voltage   | temp      |\n");
+
+                // Add separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Iterate over each IC
+                for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
+                    int cell_channels = cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels;
+
+                    // Iterate over each cell channel
+                    for (int i = 0; i < cell_channels; i++) {
+                        // Calculate the global cell number
+                        int cell_number = current_ic * cell_channels + i + 1;
+
+                        // Get the cell voltage and convert it to volts
+                        float voltage = cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001;
+
+                        // Since temperature data is not available yet, we'll use "N/A"
+                        // Format the line with fixed-width columns
+                        char line[64];
+                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n", cell_number, voltage, "N/A");
+
+                        // Add the formatted line to the data frame
+                        dataFrame.concat(line);
+                    }
+                }
+
+                // Add bottom separator line
+                dataFrame.concat("+----------+-----------+-----------+\n");
+
+                // Print the data frame to the serial port
                 SERIAL_DEBUG.println(dataFrame);
+
+                // Reset the voltage data availability flag
+                voltageDataAvailable = false;
             }
-            // release mutex
+            // Release mutex
             xSemaphoreGive(xMutex);
         }
-        // limit task refresh rate
+        // Limit task refresh rate
         vTaskDelay(SERIAL_WRITE_REFRESH_RATE);
     }
 }
@@ -483,17 +538,16 @@ String TaskStateToString(const eTaskState state) {
 }
 
 String msToMSms(uint64_t ms) {
-    std::ostringstream Msms;
-
     const uint minutes = ms / 60000;
     ms = ms % 60000;
 
     const uint seconds = ms / 1000;
     ms = ms % 1000;
 
-    Msms << std::setw(2) << minutes << ':' << std::setw(2) << seconds << '.' << std::setw(3) << ms;
+    char buffer[16];
+    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03lu", minutes, seconds, ms);
 
-    return Msms.str;
+    return {buffer};
 }
 
 // TODO: Convert
