@@ -447,7 +447,7 @@ String msToMSms(uint64_t ms) {
 
     Msms << std::setw(2) << minutes << ':' << std::setw(2) << seconds << '.' << std::setw(3) << ms;
 
-    return Msms.str;
+    return static_cast<String>(Msms.str);
 }
 
 // TODO: Convert
