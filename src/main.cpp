@@ -46,7 +46,8 @@ See README file for links to libraries, etc.
 #define TWAI_WRITE_REFRESH_RATE 8 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
 #define VOLTAGE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
-#define TEMPERATURE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+#define TEMPERATURE_READ_REFRESH_RATE                                                    \
+    9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define SERIAL_WRITE_REFRESH_RATE 500 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
 
@@ -66,25 +67,33 @@ See README file for links to libraries, etc.
 ===============================================================================================
 */
 // Under Voltage and Over Voltage Thresholds
-const uint16_t OV_THRESHOLD = 41000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
-const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
+const uint16_t OV_THRESHOLD =
+    41000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
+const uint16_t UV_THRESHOLD =
+    30000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
 /*************************************************************************
  Set configuration register. Refer to the data sheet
 **************************************************************************/
 bool REFON = true; //!< Reference Powered Up Bit
 bool ADCOPT = false; //!< ADC Mode option bit
-bool GPIOBITS_A[5] = {false, false, true, true, true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
+bool GPIOBITS_A[5] = {false, false, true, true,
+                      true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
 bool GPIOBITS_B[4] = {false, false, false, false}; //!< GPIO Pin Control // Gpio 6,7,8,9
 
 uint16_t UV = UV_THRESHOLD; //!< Under voltage Comparison Voltage
 uint16_t OV = OV_THRESHOLD; //!< Over voltage Comparison Voltage
 
-bool DCCBITS_A[12] = {false, false, false, false, false, false, false, false, false, false, false, false};
+bool DCCBITS_A[12] = {false, false, false, false, false, false,
+                      false, false, false, false, false, false};
 //!< Discharge cell switch //Dcc 1,2,3,4,5,6,7,8,9,10,11,12
-bool DCCBITS_B[7] = {false, false, false, false}; //!< Discharge cell switch //Dcc 0,13,14,15
-bool DCTOBITS[4] = {true, false, true, false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min
+bool DCCBITS_B[7] = {false, false, false,
+                     false}; //!< Discharge cell switch //Dcc 0,13,14,15
+bool DCTOBITS[4] = {
+    true, false, true,
+    false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min
 
-/*Ensure that Dcto bits are set according to the required discharge time. Refer to the data sheet */
+/*Ensure that Dcto bits are set according to the required discharge time. Refer
+ * to the data sheet */
 bool FDRF = false; //!< Force Digital Redundancy Failure Bit
 bool DTMEN = true; //!< Enable Discharge Timer Monitor
 bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
@@ -131,8 +140,8 @@ TaskHandle_t xHandleTWAIRead = nullptr;
 TaskHandle_t xHandleTWAIWrite = nullptr;
 
 // TWAI
-static const twai_general_config_t can_general_config =
-    TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TWAI_TX_PIN, (gpio_num_t)TWAI_RX_PIN, TWAI_MODE_NORMAL);
+static const twai_general_config_t can_general_config = TWAI_GENERAL_CONFIG_DEFAULT(
+    (gpio_num_t)TWAI_TX_PIN, (gpio_num_t)TWAI_RX_PIN, TWAI_MODE_NORMAL);
 static const twai_timing_config_t can_timing_config = TWAI_TIMING_CONFIG_500KBITS();
 static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
@@ -168,14 +177,17 @@ void serial_print_hex(uint8_t);
 */
 
 void setup() {
-    // ----------------------- initialize serial connection --------------------- //
+    // ----------------------- initialize serial connection
+    // --------------------- //
     SERIAL_DEBUG.begin(9600);
     SERIAL_DEBUG.printf("\n\n|--- STARTING SETUP ---|\n\n");
-    // -------------------------------------------------------------------------- //
+    // --------------------------------------------------------------------------
+    // //
 
     /*** Spi Initializations ***/
     // vspi = new SPIClass(VSPI);
-    // SPI.begin(SCLK,MISO,MOSI,CS1); //SCLK,MISO,MOSI,CS1     set spi pins for ESP32
+    // SPI.begin(SCLK,MISO,MOSI,CS1); //SCLK,MISO,MOSI,CS1     set spi pins for
+    // ESP32
     SPI.begin();
     pinMode(CS1, OUTPUT);
     SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
@@ -185,15 +197,20 @@ void setup() {
     LTC6812_init_cfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
     LTC6812_init_cfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
     // set registers for each IC
-    LTC6812_set_cfgr(1, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-    LTC6812_set_cfgrb(1, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+    LTC6812_set_cfgr(1, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A,
+                     DCCBITS_A, DCTOBITS, UV, OV);
+    LTC6812_set_cfgrb(1, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B,
+                      DCCBITS_B);
 
-    LTC6812_reset_crc_count(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
-    LTC6812_init_reg_limits(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+    LTC6812_reset_crc_count(cellStatus.cellData.total_ic,
+                            cellStatus.voltageStatus.BMS_IC);
+    LTC6812_init_reg_limits(cellStatus.cellData.total_ic,
+                            cellStatus.voltageStatus.BMS_IC);
 
-    bool twaiActive;
+    bool twaiActive = false;
     // install TWAI driver
-    if (twai_driver_install(&can_general_config, &can_timing_config, &can_filter_config) == ESP_OK) {
+    if (twai_driver_install(&can_general_config, &can_timing_config,
+                            &can_filter_config) == ESP_OK) {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ SUCCESS ]\n");
 
         // start CAN bus
@@ -214,28 +231,27 @@ void setup() {
     }
 
 
-    if (twaiActive) {
-        xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIRead, 0);
-        xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIWrite, 1);
-    }
-
-    // ------------------------------- Scheduler & Task Status --------------------------------- //
-    // init mutex
+    // ------------------------------- Scheduler & Task Status
+    // --------------------------------- // init mutex
     xMutex = xSemaphoreCreateMutex();
 
     if (xMutex != nullptr) {
         // Cell read tasks
-        xTaskCreatePinnedToCore(voltageReadTask, "Voltage-Read", TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
-                                &xHandleVoltageRead, 0);
-        xTaskCreatePinnedToCore(temperatureReadTask, "Temperature-Read", TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
-                                &xHandleTempRead, 0);
+        xTaskCreatePinnedToCore(voltageReadTask, "Voltage-Read", TASK_STACK_SIZE, nullptr,
+                                tskIDLE_PRIORITY, &xHandleVoltageRead, 0);
+        xTaskCreatePinnedToCore(temperatureReadTask, "Temperature-Read", TASK_STACK_SIZE,
+                                nullptr, tskIDLE_PRIORITY, &xHandleTempRead, 0);
 
         // TWAI tasks
-        xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIRead, 0);
-        xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE, nullptr, 1, &xHandleTWAIWrite, 1);
+        if (twaiActive) {
+            xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE, nullptr,
+                                    1, &xHandleTWAIRead, 0);
+            xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE, nullptr,
+                                    1, &xHandleTWAIWrite, 1);
+        }
         // Debug task
-        xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write", TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
-                                &xHandleSerialWrite, 1);
+        xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write", TASK_STACK_SIZE,
+                                nullptr, tskIDLE_PRIORITY, &xHandleSerialWrite, 1);
     }
     else {
         SERIAL_DEBUG.printf("FAILED TO INIT MUTEX!\nHALTING OPERATIONS!");
@@ -267,7 +283,8 @@ void setup() {
 
     // TWAI
     if (xHandleTWAIRead != nullptr)
-        SERIAL_DEBUG.printf("TWAI READ TASK STATUS: %s \n", TaskStateToString(eTaskGetState(xHandleTWAIRead)).c_str());
+        SERIAL_DEBUG.printf("TWAI READ TASK STATUS: %s \n",
+                            TaskStateToString(eTaskGetState(xHandleTWAIRead)).c_str());
     else
         SERIAL_DEBUG.printf("TWAI READ TASK STATUS: DISABLED!\n");
 
@@ -293,7 +310,8 @@ void setup() {
             ;
     }
     SERIAL_DEBUG.printf("\n\n|--- END SETUP ---|\n\n");
-    // ---------------------------------------------------------------------------------------- //
+    // ----------------------------------------------------------------------------------------
+    // //
 }
 
 /*
@@ -313,10 +331,12 @@ void loop() {
     ************************************************************************/
 
     wakeup_sleep(cellStatus.cellData.total_ic);
-    for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS,
-                         UV, OV);
-        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+    for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic;
+         current_ic++) {
+        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT,
+                         GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN,
+                          PSBits, GPIOBITS_B, DCCBITS_B);
     }
     wakeup_idle(cellStatus.cellData.total_ic);
     LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
@@ -337,7 +357,8 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-            // If we have data yet to be converted, we don't want to over-write it
+            // If we have data yet to be converted, we don't want to over-write
+            // it
             if (adcStatus == NOTSTARTED) {
                 // wake up ic
                 wakeup_sleep(cellStatus.cellData.total_ic);
@@ -346,9 +367,11 @@ void loop() {
                 // normal operation, discharge disabled, all cell channels
                 LTC6812_adcv(MD_7KHZ_3KHZ, DCP_DISABLED, CELL_CH_ALL);
 
-                // record the timestamp when the data was snapshotted and convert to milliseconds
+                // record the timestamp when the data was snapshotted and
+                // convert to milliseconds
                 cellStatus.voltageStatus.voltageStamp = esp_rtc_get_time_us() / 1000;
-                // just in case, to avoid duplicate data, ensure that data collection does to try to operate again
+                // just in case, to avoid duplicate data, ensure that data
+                // collection does to try to operate again
                 voltageDataAvailable = false;
 
                 // We set the conversion to started
@@ -364,7 +387,8 @@ void loop() {
 
             if (adcStatus == COMPLETED) {
                 const uint8_t pec_error =
-                    LTC6812_rdcv(REG_ALL, cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+                    LTC6812_rdcv(REG_ALL, cellStatus.cellData.total_ic,
+                                 cellStatus.voltageStatus.BMS_IC);
                 if (pec_error != 0) {
                     if (prevErr != pec_error)
                         SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
@@ -422,7 +446,8 @@ void loop() {
 
                 // Build header row with timestamp in second and third columns
                 char headerLine[64];
-                snprintf(headerLine, sizeof(headerLine), "|          | %9s | %9s |\n", timestamp.c_str(), "12:34.456");
+                snprintf(headerLine, sizeof(headerLine), "|          | %9s | %9s |\n",
+                         timestamp.c_str(), "12:34.456");
                 dataFrame.concat(headerLine);
 
                 // Add separator line
@@ -435,8 +460,10 @@ void loop() {
                 dataFrame.concat("+----------+-----------+-----------+\n");
 
                 // Iterate over each IC
-                for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-                    int cell_channels = cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels;
+                for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic;
+                     current_ic++) {
+                    int cell_channels =
+                        cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels;
 
                     // Iterate over each cell channel
                     for (int i = 0; i < cell_channels; i++) {
@@ -444,12 +471,15 @@ void loop() {
                         int cell_number = current_ic * cell_channels + i + 1;
 
                         // Get the cell voltage and convert it to volts
-                        float voltage = cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001;
+                        float voltage =
+                            cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] *
+                            0.0001;
 
-                        // Since temperature data is not available yet, we'll use "N/A"
-                        // Format the line with fixed-width columns
+                        // Since temperature data is not available yet, we'll
+                        // use "N/A" Format the line with fixed-width columns
                         char line[64];
-                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n", cell_number, voltage, "N/A");
+                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n",
+                                 cell_number, voltage, "N/A");
 
                         // Add the formatted line to the data frame
                         dataFrame.concat(line);
@@ -496,10 +526,6 @@ void loop() {
         vTaskDelay(TWAI_WRITE_REFRESH_RATE);
     }
 }
-
-// -------------------------------------------------------------------------- //
-
-// --------------------- initialize TWAI Controller -------------------------- //
 
 /*
 ===============================================================================================
@@ -550,34 +576,6 @@ String msToMSms(uint64_t ms) {
     return {buffer};
 }
 
-// TODO: Convert
-
-void print_cells(uint8_t datalog_en) {
-    for (int current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-        if (datalog_en == 0) {
-            SERIAL_DEBUG.print(" IC ");
-            SERIAL_DEBUG.print(current_ic + 1, DEC);
-            SERIAL_DEBUG.print(", ");
-            for (int i = 0; i < cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels; i++) {
-                SERIAL_DEBUG.print(" C");
-                SERIAL_DEBUG.print(i + 1, DEC);
-                SERIAL_DEBUG.print(":");
-                SERIAL_DEBUG.print(cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
-                SERIAL_DEBUG.print(",");
-            }
-            SERIAL_DEBUG.println();
-        }
-        else {
-            SERIAL_DEBUG.print(" Cells, ");
-            for (int i = 0; i < cellStatus.voltageStatus.BMS_IC[0].ic_reg.cell_channels; i++) {
-                SERIAL_DEBUG.print(cellStatus.voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
-                SERIAL_DEBUG.print(",");
-            }
-        }
-    }
-    SERIAL_DEBUG.println("\n");
-}
-
 
 /*!******************************************************************************
  \brief Prints the Configuration Register A data that is going to be written to
@@ -592,10 +590,12 @@ void print_wrconfig(void) {
         SERIAL_DEBUG.print(current_ic + 1, DEC);
         for (int i = 0; i < 6; i++) {
             SERIAL_DEBUG.print(F(", 0x"));
-            serial_print_hex(cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[i]);
+            serial_print_hex(
+                cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[i]);
         }
         SERIAL_DEBUG.print(F(", Calculated PEC: 0x"));
-        cfg_pec = pec15_calc(6, &cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[0]);
+        cfg_pec =
+            pec15_calc(6, &cellStatus.voltageStatus.BMS_IC[current_ic].config.tx_data[0]);
         serial_print_hex((uint8_t)(cfg_pec >> 8));
         SERIAL_DEBUG.print(F(", 0x"));
         serial_print_hex((uint8_t)(cfg_pec));
