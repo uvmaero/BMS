@@ -440,7 +440,6 @@ void loop() {
                 String dataFrame = "";
                 // Create top separator line
                 dataFrame.concat("+----------+-----------+-----------+\n");
-
                 // Get the timestamp
                 String timestamp = msToMSms(cellStatus.voltageStatus.voltageStamp);
 
@@ -452,10 +451,8 @@ void loop() {
 
                 // Add separator line
                 dataFrame.concat("+----------+-----------+-----------+\n");
-
                 // Add column headers
                 dataFrame.concat("| cell #   | voltage   | temp      |\n");
-
                 // Add separator line
                 dataFrame.concat("+----------+-----------+-----------+\n");
 
