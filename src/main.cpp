@@ -329,21 +329,6 @@ void loop() {
      Please ensure you have set the GPIO bits according to your requirement
       in the configuration register.( check the global variable GPIOBITS_A )
     ************************************************************************/
-
-    wakeup_sleep(cellStatus.cellData.total_ic);
-    for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic;
-         current_ic++) {
-        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT,
-                         GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN,
-                          PSBits, GPIOBITS_B, DCCBITS_B);
-    }
-    wakeup_idle(cellStatus.cellData.total_ic);
-    LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
-    LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
-    print_wrconfig();
-
-    delay(1000);
 }
 
 /*
@@ -362,7 +347,19 @@ void loop() {
             if (adcStatus == NOTSTARTED) {
                 // wake up ic
                 wakeup_sleep(cellStatus.cellData.total_ic);
-
+                // Ensure configuration is correct
+                for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic;
+                     current_ic++) {
+                    LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON,
+                                     ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+                    LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF,
+                                      DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+                }
+                wakeup_idle(cellStatus.cellData.total_ic);
+                LTC6812_wrcfg(cellStatus.cellData.total_ic,
+                              cellStatus.voltageStatus.BMS_IC);
+                LTC6812_wrcfgb(cellStatus.cellData.total_ic,
+                               cellStatus.voltageStatus.BMS_IC);
                 // start ADC voltage conversion
                 // normal operation, discharge disabled, all cell channels
                 LTC6812_adcv(MD_7KHZ_3KHZ, DCP_DISABLED, CELL_CH_ALL);
@@ -422,6 +419,20 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+
+            // wake up ic
+            wakeup_sleep(cellStatus.cellData.total_ic);
+            // Ensure configuration is correct
+            for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic;
+                 current_ic++) {
+                LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON,
+                                 ADCOPT, GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+                LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF,
+                                  DTMEN, PSBits, GPIOBITS_B, DCCBITS_B);
+            }
+            wakeup_idle(cellStatus.cellData.total_ic);
+            LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+            LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
             // release mutex
             xSemaphoreGive(xMutex);
         }
@@ -440,7 +451,7 @@ void loop() {
                 String dataFrame = "";
                 // Create top separator line
                 dataFrame.concat("+----------+-----------+-----------+\n");
-                // Get the timestamp
+                // Get the timestagmp
                 String timestamp = msToMSms(cellStatus.voltageStatus.voltageStamp);
 
                 // Build header row with timestamp in second and third columns
