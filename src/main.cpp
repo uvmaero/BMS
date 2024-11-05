@@ -161,8 +161,6 @@ static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_
 String TaskStateToString(eTaskState state);
 String msToMSms(uint64_t ms);
 
-// TODO: convert
-void print_cells(uint8_t);
 void print_wrconfig();
 void serial_print_hex(uint8_t);
 
@@ -400,7 +398,7 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
-            wakeup_sleep(cellStatus.cellData.total_ic);
+            /* wakeup_sleep(cellStatus.cellData.total_ic);
             for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
                 LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT,
                                  GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
@@ -410,6 +408,7 @@ void loop() {
             wakeup_idle(cellStatus.cellData.total_ic);
             LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
             LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+            */
             // release mutex
             xSemaphoreGive(xMutex);
         }
