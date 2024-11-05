@@ -71,8 +71,8 @@ const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB 
 /*************************************************************************
  Set configuration register. Refer to the data sheet
 **************************************************************************/
-bool REFON = true; //!< Reference Powered Up Bit
-bool ADCOPT = false; //!< ADC Mode option bit
+bool REFON = true; // Reference Powered Up Bit (Remain powered until watchdog timeout)
+bool ADCOPT = false; // ADC Mode option bit 0 = (27kHz, 7kHz, 422 Hz, or 26 Hz)
 bool GPIOBITS_A[5] = {false, false, true, true, true}; //!< GPIO Pin Control // Gpio 1,2,3,4,5
 bool GPIOBITS_B[4] = {false, false, false, false}; //!< GPIO Pin Control // Gpio 6,7,8,9
 
@@ -313,26 +313,6 @@ void setup() {
 void loop() {
     // everything is managed by RTOS, so nothing really happens here!
     vTaskDelay(1); // prevent watchdog from getting upset
-
-    // Set and reset the gpio pins(to drive output on gpio pins)
-    /***********************************************************************
-     Please ensure you have set the GPIO bits according to your requirement
-      in the configuration register.( check the global variable GPIOBITS_A )
-    ************************************************************************/
-
-    wakeup_sleep(cellStatus.cellData.total_ic);
-    for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
-        LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A,
-                         DCCBITS_A, DCTOBITS, UV, OV);
-        LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits,
-                          GPIOBITS_B, DCCBITS_B);
-    }
-    wakeup_idle(cellStatus.cellData.total_ic);
-    LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
-    LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
-    print_wrconfig();
-
-    delay(1000);
 }
 
 /*
@@ -351,6 +331,16 @@ void loop() {
             if (adcStatus == NOTSTARTED) {
                 // wake up ic
                 wakeup_sleep(cellStatus.cellData.total_ic);
+                for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic;
+                     current_ic++) {
+                    LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT,
+                                     GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+                    LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN,
+                                      PSBits, GPIOBITS_B, DCCBITS_B);
+                }
+                wakeup_idle(cellStatus.cellData.total_ic);
+                LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+                LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
 
                 // start ADC voltage conversion
                 // normal operation, discharge disabled, all cell channels
@@ -404,12 +394,22 @@ void loop() {
      * clraux(): clears aux
      * there was one more about testing or something idk
      * seemed lame
-     * file:///Users/owencook/Desktop/AERO/BMS/Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
+     * Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
      */
 
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+            wakeup_sleep(cellStatus.cellData.total_ic);
+            for (uint8_t current_ic = 0; current_ic < cellStatus.cellData.total_ic; current_ic++) {
+                LTC6812_set_cfgr(current_ic, cellStatus.voltageStatus.BMS_IC, REFON, ADCOPT,
+                                 GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+                LTC6812_set_cfgrb(current_ic, cellStatus.voltageStatus.BMS_IC, FDRF, DTMEN, PSBits,
+                                  GPIOBITS_B, DCCBITS_B);
+            }
+            wakeup_idle(cellStatus.cellData.total_ic);
+            LTC6812_wrcfg(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
+            LTC6812_wrcfgb(cellStatus.cellData.total_ic, cellStatus.voltageStatus.BMS_IC);
             // release mutex
             xSemaphoreGive(xMutex);
         }
