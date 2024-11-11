@@ -52,8 +52,8 @@ See README file for links to libraries, etc.
 #define TWAI_READ_REFRESH_RATE 1 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TWAI_WRITE_REFRESH_RATE 8 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
-#define VOLTAGE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TEMPERATURE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+#define PACK_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define SERIAL_WRITE_REFRESH_RATE 500 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
 
@@ -161,8 +161,7 @@ static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_
 ===============================================================================================
 */
 
-[[noreturn]] void voltageReadTask(void *pvParameters);
-[[noreturn]] void temperatureReadTask(void *pvParameters);
+[[noreturn]] void packReadTask(void *pvParameters);
 
 [[noreturn]] void serialWriteTask(void *pvParameters);
 
@@ -216,14 +215,13 @@ void setup() {
         ESP_OK) {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ SUCCESS ]\n");
 
-        // start CAN bus
+        // start TWAI bus
         if (twai_start() == ESP_OK) {
             SERIAL_DEBUG.printf("TWAI INIT [ SUCCESS ]\n");
             twai_reconfigure_alerts(TWAI_ALERT_ALL, NULL);
 
             twaiActive = true;
         }
-
         else {
             SERIAL_DEBUG.printf("TWAI INIT [ FAILED ]\n");
         }
@@ -239,10 +237,8 @@ void setup() {
 
     if (xMutex != nullptr) {
         // Cell read tasks (created on core 1)
-        xTaskCreatePinnedToCore(voltageReadTask, "Voltage-Read", TASK_STACK_SIZE, nullptr,
+        xTaskCreatePinnedToCore(packReadTask, "Voltage-Read", TASK_STACK_SIZE, nullptr,
                                 tskIDLE_PRIORITY, &xHandleVoltageRead, 1);
-        xTaskCreatePinnedToCore(temperatureReadTask, "Temperature-Read", TASK_STACK_SIZE, nullptr,
-                                tskIDLE_PRIORITY, &xHandleTempRead, 1);
 
         // TWAI tasks (core 0)
         if (twaiActive) {
@@ -332,11 +328,12 @@ void loop() {
 ===============================================================================================
 */
 
-[[noreturn]] void voltageReadTask(void *pvParameters) {
+[[noreturn]] void packReadTask(void *pvParameters) {
     uint8_t prevErr = 0;
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+            // ------------------------ Voltage Read ------------------------
             // If we have data yet to be converted, we don't want to over-write
             // it
             if (adcStatus == NOTSTARTED) {
@@ -394,25 +391,17 @@ void loop() {
 
                 switchSPI();
             }
-            // release mutex
-            xSemaphoreGive(xMutex);
-        }
-        // limit task refresh rate
-        vTaskDelay(VOLTAGE_READ_REFRESH_RATE);
-    }
-}
 
-[[noreturn]] void temperatureReadTask(void *pvParameters) {
-    /*
-     * Useful functions all start with LTC681x_
-     * rdaux(): reads and parses auxiliary registers
-     * rdaux_reg(): read raw data
-     * clraux(): clears aux
-     * Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
-     */
-    for (;;) {
-        // Check for mutex availability
-        if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+            // ------------------ Temperature Read ------------------
+
+            /*
+             * Useful functions all start with LTC681x_
+             * rdaux(): reads and parses auxiliary registers
+             * rdaux_reg(): read raw data
+             * clraux(): clears aux
+             * Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
+             */
+
             /*wakeup_sleep(activeCell->cellData.total_ic);
             for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic; current_ic++) {
                 LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
@@ -428,7 +417,7 @@ void loop() {
             xSemaphoreGive(xMutex);
         }
         // limit task refresh rate
-        vTaskDelay(TEMPERATURE_READ_REFRESH_RATE);
+        vTaskDelay(PACK_READ_REFRESH_RATE);
     }
 }
 
