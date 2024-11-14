@@ -69,6 +69,14 @@ See README file for links to libraries, etc.
 
 #define TOTAL_IC 2
 
+#define BMS_STATUS_AVG_VOLT_ADDR 0x6B4 // Average Voltage
+#define BMS_STATUS_LOW_VOLT_ADDR 0x6B5 // Lowest Voltage
+#define BMS_STATUS_HIGH_VOLT_ADDR 0x6B6 // Highest Voltage
+#define BMS_STATUS_AVG_TEMP_ADDR 0x6B7 // Average Temperature
+#define BMS_STATUS_LOW_TEMP_ADDR 0x6B8 // Lowest Temperature
+#define BMS_STATUS_HIGH_TEMP_ADDR 0x6B9 // Highest Temperature
+#define BMS_COMPOSITE_STATUS_ADDR 0x6BA // Composite Battery Status
+
 /*
 ===============================================================================================
                                     Configuration
@@ -511,9 +519,8 @@ void loop() {
 
             // Initialize the CAN message structure
             twai_message_t batteryStatus;
-            // TODO : look up these flags
-            batteryStatus.identifier = 0x00;
-            batteryStatus.flags = 0x00;
+            batteryStatus.identifier = BMS_COMPOSITE_STATUS_ADDR;
+            batteryStatus.flags = TWAI_MSG_FLAG_NONE;
             batteryStatus.data_length_code = 6;
 
             // Build the message data
@@ -524,6 +531,21 @@ void loop() {
             batteryStatus.data[4] = 0x00; // Lowest Temperature
             batteryStatus.data[5] = 0x00; // Highest Temperature
 
+            /*
+            // Average Voltage (uint16_t)
+            batteryStatus.data[0] = (uint8_t)(tractiveCoreData.orion.busVoltage & 0xFF);        //
+            Lower byte batteryStatus.data[1] = (uint8_t)((tractiveCoreData.orion.busVoltage >> 8) &
+            0xFF); // Upper byte
+
+            // Lowest Voltage (uint16_t)
+            batteryStatus.data[2] = (uint8_t)(tractiveCoreData.orion.minCellVoltage & 0xFF);
+            batteryStatus.data[3] = (uint8_t)((tractiveCoreData.orion.minCellVoltage >> 8) & 0xFF);
+
+            // Highest Voltage (uint16_t)
+            batteryStatus.data[4] = (uint8_t)(tractiveCoreData.orion.maxCellVoltage & 0xFF);
+            batteryStatus.data[5] = (uint8_t)((tractiveCoreData.orion.maxCellVoltage >> 8) & 0xFF);
+            */
+            
             // Transmit the message over the CAN bus with a blocking delay
             esp_err_t transmitResult =
                 twai_transmit(&batteryStatus, pdMS_TO_TICKS(TWAI_BLOCK_DELAY));
