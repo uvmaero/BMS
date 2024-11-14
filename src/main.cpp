@@ -52,6 +52,8 @@ See README file for links to libraries, etc.
 #define TWAI_READ_REFRESH_RATE 1 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define TWAI_WRITE_REFRESH_RATE 8 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
+#define TWAI_BLOCK_DELAY 1 // time to block to complete function call in FreeRTOS ticks
+
 #define TEMPERATURE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define PACK_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 #define SERIAL_WRITE_REFRESH_RATE 500 // measured in ticks (RTOS ticks interrupt at 1 kHz)
@@ -506,6 +508,34 @@ void loop() {
     for (;;) {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
+
+            // Initialize the CAN message structure
+            twai_message_t batteryStatus;
+            // TODO : look up these flags
+            batteryStatus.identifier = 0x00;
+            batteryStatus.flags = 0x00;
+            batteryStatus.data_length_code = 6;
+
+            // Build the message data
+            batteryStatus.data[0] = 0x00; // Average Voltage
+            batteryStatus.data[1] = 0x00; // Lowest Voltage
+            batteryStatus.data[2] = 0x00; // Highest Voltage
+            batteryStatus.data[3] = 0x00; // Average Temperature
+            batteryStatus.data[4] = 0x00; // Lowest Temperature
+            batteryStatus.data[5] = 0x00; // Highest Temperature
+
+            // Transmit the message over the CAN bus with a blocking delay
+            esp_err_t transmitResult =
+                twai_transmit(&batteryStatus, pdMS_TO_TICKS(TWAI_BLOCK_DELAY));
+
+            // Debugging: Check if transmission was successful
+            if (transmitResult == ESP_OK) {
+                SERIAL_DEBUG.printf("TWAI Message Transmitted Successfully.\n");
+            }
+            else {
+                SERIAL_DEBUG.printf("Failed to Transmit TWAI Message. Error: %d\n", transmitResult);
+            }
+
             // release mutex
             xSemaphoreGive(xMutex);
         }
