@@ -15,6 +15,7 @@ See README file for links to libraries, etc.
 #include <LTC6812.h>
 #include <LTC681x.h>
 #include <SPI.h>
+#include <Wire.h>
 #include <iomanip>
 #include <soc/rtc.h>
 #include <sstream>
@@ -60,6 +61,8 @@ See README file for links to libraries, etc.
 #define TASK_STACK_SIZE 20000 // in bytes
 
 #define SERIAL_DEBUG Serial
+
+#define I2C_CONN Wire
 
 // TWAI
 #define TWAI_RX_PIN 42
@@ -131,7 +134,9 @@ cell_status *activeCell;
 int8_t activeSPI = -1;
 
 // This controls whether the ADC conversion is considered "finished"
-adc_conv_status adcStatus = NOTSTARTED;
+cell_read_status adcStatus = NOTSTARTED;
+// This controls whether Temp reading is done
+cell_read_status tempStatus = NOTSTARTED;
 bool voltageDataAvailable = false;
 
 // Mutex
@@ -208,6 +213,7 @@ void setup() {
 
     LTC6812_reset_crc_count(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
     LTC6812_init_reg_limits(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+
 
     bool twaiActive = false;
     // install TWAI driver
@@ -328,6 +334,29 @@ void loop() {
 ===============================================================================================
 */
 
+// Pack Read Definitions
+#define ACK 0x00000000
+#define START 0x0110
+#define STOP 0x0001
+#define BLANK 0x0000
+#define NOTHING 0x00000000
+
+// Mux 0 Full and final half
+#define A0 0x10011010
+#define A01 0x10100000
+
+// Mux stacks first half
+#define AX0 0x00001001
+
+// Mux 1 Full and final half
+#define A1 0x10011110
+#define A11 0x1110
+
+// CELL Defs
+#define S10 0x00000000
+#define S11 0x00010000
+// TODO
+
 [[noreturn]] void packReadTask(void *pvParameters) {
     uint8_t prevErr = 0;
     for (;;) {
@@ -393,7 +422,10 @@ void loop() {
             }
 
             // ------------------ Temperature Read ------------------
-
+            // TODO: Essentially, the temperatures are going to come in on the pack's GPIO 8 and 9,
+            // and we need to write to GPIO 3 + 4 on the packs in order to switch around the MUXs.
+            // This is done using the COMM register
+            // This will use LTC6812_wrcomm(), LTC6812_rdcomm(), and LTC6812_stcomm()
             /*
              * Useful functions all start with LTC681x_
              * rdaux(): reads and parses auxiliary registers
@@ -402,7 +434,7 @@ void loop() {
              * Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
              */
 
-            /*wakeup_sleep(activeCell->cellData.total_ic);
+            wakeup_sleep(activeCell->cellData.total_ic);
             for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic; current_ic++) {
                 LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
                                  GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
@@ -412,7 +444,33 @@ void loop() {
             wakeup_idle(activeCell->cellData.total_ic);
             LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
             LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-            */
+
+            for (int i = 0; i < 2; i++) {
+                cell_asic message[activeCell->cellData.total_ic];
+
+                // START[4]-DATA[4] (ADDRESS)
+                // DATA[4] (ADDRESS/ RW)-ACK[4]
+                // BLANK[4]-DATA[4] (PIN)
+                // DATA[4] (PIN) -ACK[4]
+                // STOP[4]-DATA[4] (NOT USED)
+
+                // Data 00000001 -> first
+                //  0x0110 : START -> 0000 : DATA[7:4] (address)
+                message[0].com.rx_data[0] = START | AX0;
+                // 0x0000 : DATA[3:0] -> 0000 : ACK
+                message[0].com.rx_data[1] = A01 | ACK;
+                // 0x0000 : BLANK -> 0000 : DATA1[7:4]
+                message[0].com.rx_data[2] = BLANK | S10;
+                // Last half of selection -> ACK
+                message[0].com.rx_data[3] = S11 | ACK;
+                // STOP -> Not important
+                message[0].com.rx_data[4] = STOP | NOTHING;
+
+                LTC6812_wrcomm(activeCell->cellData.total_ic, message);
+                LTC6812_stcomm(4);
+
+                // TODO: READ GPIO PINS
+            }
             // release mutex
             xSemaphoreGive(xMutex);
         }
