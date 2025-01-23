@@ -338,32 +338,6 @@ void loop() {
 ===============================================================================================
 */
 
-// Pack Read Definitions
-#define ACK 0x00000000
-#define START 0x0110
-#define STOP 0x0001
-#define BLANK 0x0000
-#define NOTHING 0x00000000
-
-// Mux 0 Full and final half
-#define A0 0x10011010
-#define A01 0x10100000
-
-// Mux stacks first half
-#define AX0 0x00001001
-
-// Mux 1 Full and final half
-#define A1 0x10011110
-#define A11 0x1110
-
-#define GPIOTEMP1 8
-#define GPIOTEMP2 9
-
-// CELL Defs
-#define S10 0x00000000
-#define S11 0x00010000
-// TODO
-
 [[noreturn]] void packReadTask(void *pvParameters) {
     uint8_t prevErr = 0;
     for (;;) {
@@ -504,8 +478,10 @@ void loop() {
                     }
                     LTC6812_stcomm(4);
 
-                    if (LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures) > 0) {
-                        // TODO: FIX ERROR
+                    const uint8_t pec_error =
+                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures);
+                    if (pec_error != 0) {
+                        SERIAL_DEBUG.printf("TEMPERATURE READ ERROR; Code: %d\n", pec_error);
                     }
 
                     // The rdaux function will start with the first IC and put the reading into
