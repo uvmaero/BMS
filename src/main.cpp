@@ -113,6 +113,7 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 */
 
 struct cell_status {
+    char side;
     struct CellData {
         uint8_t total_ic = TOTAL_IC; // number of ic's in daisy chain
     } cellData;
@@ -128,8 +129,8 @@ struct cell_status {
         std::vector<uint8_t> cell[TOTAL_IC]{};
     } temperatureStatus;
 };
-cell_status cellStatus0;
-cell_status cellStatus1;
+cell_status cellStatus0 = {.side = 0};
+cell_status cellStatus1 = {.side = 1};
 cell_status *activeCell;
 
 // This controls which battery pack is being read through SPI
@@ -419,67 +420,109 @@ void loop() {
                 adcStatus = NOTSTARTED;
                 // We can read the data, and it won't be undefined
                 voltageDataAvailable = pec_error ? false : true;
-
-                // Switch the SPI so we alternate which we are reading from
-                /*TODO: when temperature read is implemented, make sure we don't swap SPI in the
-                 * middle of conversion*/
-
-                switchSPI();
             }
+            if (tempStatus == NOTSTARTED) {
+                // ------------------ Temperature Read ------------------
+                wakeup_sleep(activeCell->cellData.total_ic);
+                for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic;
+                     current_ic++) {
+                    LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
+                                     GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+                    LTC6812_set_cfgrb(current_ic, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN,
+                                      PSBits, GPIOBITS_B, DCCBITS_B);
+                }
+                wakeup_idle(activeCell->cellData.total_ic);
+                LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+                LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
 
-            // ------------------ Temperature Read ------------------
-            // TODO: Essentially, the temperatures are going to come in on the pack's GPIO 8 and 9,
-            // and we need to write to GPIO 3 + 4 on the packs in order to switch around the MUXs.
-            // This is done using the COMM register
-            // This will use LTC6812_wrcomm(), LTC6812_rdcomm(), and LTC6812_stcomm()
-            /*
-             * Useful functions all start with LTC681x_
-             * rdaux(): reads and parses auxiliary registers
-             * rdaux_reg(): read raw data
-             * clraux(): clears aux
-             * Documentation/LIB/html/LTC681x_8h.html#a3afa24ee9d99fc6c65a79d751b10cffb
-             */
 
-            wakeup_sleep(activeCell->cellData.total_ic);
-            for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic; current_ic++) {
-                LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
-                                 GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-                LTC6812_set_cfgrb(current_ic, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN, PSBits,
-                                  GPIOBITS_B, DCCBITS_B);
+                cell_asic temperatures[activeCell->cellData.total_ic];
+
+                for (int i = 0; i < 6; i++) {
+                    switch (i) {
+                    case 0:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S1);
+                        break;
+                    case 1:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S2);
+                        break;
+                    case 2:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S3);
+                        break;
+                    case 3:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S4);
+                        break;
+                    case 4:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S5);
+                        break;
+                    case 5:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S6);
+                        break;
+                    default:
+                    }
+                    LTC6812_stcomm(4);
+
+                    const uint8_t pec_error =
+                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures);
+                    if (pec_error != 0) {
+                        SERIAL_DEBUG.printf("TEMPERATURE READ ERROR; Code: %d\n", pec_error);
+                    }
+
+
+                    // The rdaux function will start with the first IC and put the reading into
+                    // aux.a_codes [0], then count up from there here we are looping through the
+                    // number of IC's and pushing back the end of the line the cells
+                    for (int j = 0; j < TOTAL_IC; j++) {
+                        activeCell->temperatureStatus.cell[j].push_back(
+                            temperatures->aux.a_codes[j]);
+                    }
+                }
+                for (int i = 0; i < 7; i++) {
+                    switch (i) {
+                    case 0:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S1);
+                        break;
+                    case 1:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S2);
+                        break;
+                    case 2:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S3);
+                        break;
+                    case 3:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S4);
+                        break;
+                    case 4:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S5);
+                        break;
+                    case 5:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S6);
+                        break;
+                    case 6:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S7);
+                        break;
+                    default:
+                    }
+                    LTC6812_stcomm(4);
+
+                    if (LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures) > 0) {
+                        // TODO: FIX ERROR
+                    }
+
+                    // The rdaux function will start with the first IC and put the reading into
+                    // aux.a_codes [0], then count up from there here we are looping through the
+                    // number of IC's and pushing back the end of the line the cells
+                    for (int j = 0; j < TOTAL_IC; j++) {
+                        activeCell->temperatureStatus.cell[j].push_back(
+                            temperatures->aux.a_codes[j]);
+                    }
+
+                    tempStatus = COMPLETED;
+                }
+
+                if (tempStatus == COMPLETED && adcStatus == COMPLETED) {
+                    switchSPI();
+                }
             }
-            wakeup_idle(activeCell->cellData.total_ic);
-            LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-            LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-
-            cell_asic message[activeCell->cellData.total_ic];
-            cell_asic temperatures[activeCell->cellData.total_ic];
-
-            // START[4]-DATA[4] (ADDRESS)
-            // DATA[4] (ADDRESS/ RW)-ACK[4]
-            // BLANK[4]-DATA[4] (PIN)
-            // DATA[4] (PIN) -ACK[4]
-            // STOP[4]-DATA[4] (NOT USED)
-
-            // Data 00000001 -> first
-            //  0x0110 : START -> 0000 : DATA[7:4] (address)
-            message[0].com.rx_data[0] = START | AX0;
-            // 0x0000 : DATA[3:0] -> 0000 : ACK
-            message[0].com.rx_data[1] = A01 | ACK;
-            // 0x0000 : BLANK -> 0000 : DATA1[7:4]
-            message[0].com.rx_data[2] = BLANK | S10;
-            // Last half of selection -> ACK
-            message[0].com.rx_data[3] = S11 | ACK;
-            // STOP -> Not important
-            message[0].com.rx_data[4] = STOP | NOTHING;
-
-            LTC6812_wrcomm(activeCell->cellData.total_ic, message);
-            LTC6812_stcomm(4);
-
-            if (LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures) > 0) {
-                // TODO: FIX ERROR
-            }
-            activeCell->temperatureStatus.cell[0].push_back(temperatures->aux.a_codes[0]);
-
             // release mutex
             xSemaphoreGive(xMutex);
         }
@@ -647,7 +690,8 @@ void switchSPI() {
         SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
     }
     else {
-        // If something went wrong with active spi, set to disabled, flag then recall this function
+        // If something went wrong with active spi, set to disabled, flag then recall this
+        // function
         SERIAL_DEBUG.printf("ERROR: Invalid activeSPI detected: %d, recovering", activeSPI);
         activeSPI = -1;
         switchSPI();
