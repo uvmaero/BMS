@@ -19,6 +19,9 @@ See README file for links to libraries, etc.
 #include <iomanip>
 #include <soc/rtc.h>
 #include <sstream>
+#include <vector>
+
+#include "TemperatureMessages.h"
 #include "data_types.h"
 #include "driver/twai.h"
 #include "rtc.h"
@@ -122,8 +125,8 @@ struct cell_status {
 
     // Temperature
     struct TemperatureStatus {
-        // TODO
-    };
+        std::vector<uint8_t> cell[TOTAL_IC]{};
+    } temperatureStatus;
 };
 cell_status cellStatus0;
 cell_status cellStatus1;
@@ -352,6 +355,9 @@ void loop() {
 #define A1 0x10011110
 #define A11 0x1110
 
+#define GPIOTEMP1 8
+#define GPIOTEMP2 9
+
 // CELL Defs
 #define S10 0x00000000
 #define S11 0x00010000
@@ -445,32 +451,35 @@ void loop() {
             LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
             LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
 
-            for (int i = 0; i < 2; i++) {
-                cell_asic message[activeCell->cellData.total_ic];
+            cell_asic message[activeCell->cellData.total_ic];
+            cell_asic temperatures[activeCell->cellData.total_ic];
 
-                // START[4]-DATA[4] (ADDRESS)
-                // DATA[4] (ADDRESS/ RW)-ACK[4]
-                // BLANK[4]-DATA[4] (PIN)
-                // DATA[4] (PIN) -ACK[4]
-                // STOP[4]-DATA[4] (NOT USED)
+            // START[4]-DATA[4] (ADDRESS)
+            // DATA[4] (ADDRESS/ RW)-ACK[4]
+            // BLANK[4]-DATA[4] (PIN)
+            // DATA[4] (PIN) -ACK[4]
+            // STOP[4]-DATA[4] (NOT USED)
 
-                // Data 00000001 -> first
-                //  0x0110 : START -> 0000 : DATA[7:4] (address)
-                message[0].com.rx_data[0] = START | AX0;
-                // 0x0000 : DATA[3:0] -> 0000 : ACK
-                message[0].com.rx_data[1] = A01 | ACK;
-                // 0x0000 : BLANK -> 0000 : DATA1[7:4]
-                message[0].com.rx_data[2] = BLANK | S10;
-                // Last half of selection -> ACK
-                message[0].com.rx_data[3] = S11 | ACK;
-                // STOP -> Not important
-                message[0].com.rx_data[4] = STOP | NOTHING;
+            // Data 00000001 -> first
+            //  0x0110 : START -> 0000 : DATA[7:4] (address)
+            message[0].com.rx_data[0] = START | AX0;
+            // 0x0000 : DATA[3:0] -> 0000 : ACK
+            message[0].com.rx_data[1] = A01 | ACK;
+            // 0x0000 : BLANK -> 0000 : DATA1[7:4]
+            message[0].com.rx_data[2] = BLANK | S10;
+            // Last half of selection -> ACK
+            message[0].com.rx_data[3] = S11 | ACK;
+            // STOP -> Not important
+            message[0].com.rx_data[4] = STOP | NOTHING;
 
-                LTC6812_wrcomm(activeCell->cellData.total_ic, message);
-                LTC6812_stcomm(4);
+            LTC6812_wrcomm(activeCell->cellData.total_ic, message);
+            LTC6812_stcomm(4);
 
-                // TODO: READ GPIO PINS
+            if (LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures) > 0) {
+                // TODO: FIX ERROR
             }
+            activeCell->temperatureStatus.cell[0].push_back(temperatures->aux.a_codes[0]);
+
             // release mutex
             xSemaphoreGive(xMutex);
         }
