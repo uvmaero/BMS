@@ -10,41 +10,41 @@
 #include <LTC681x.h>
 
 // Pack Read Definitions
-#define ACK 0x00000000
-#define START 0x0110
-#define STOP 0x0001
-#define BLANK 0x0000
-#define NOTHING 0x00000000
+#define ACK 0b00000000
+#define START 0b0110
+#define STOP 0b0001
+#define BLANK 0b0000
+#define NOTHING 0b00000000
 
 // Mux 0 Full and final half
-#define A0 0x10011010
-#define A01 0x10100000
+#define A0 0b10011010
+#define A01 0b10100000
 
 // Mux stacks first half
-#define AX0 0x00001001
+#define AX0 0b00001001
 
 // Mux 1 Full and final half
-#define A1 0x10011110
-#define A11 0x1110
+#define A1 0b10011110
+#define A11 0b1110
 
 #define GPIOTEMP1 8
 #define GPIOTEMP2 9
 
 // CELL Defs
-#define S10 0x00000000
-#define S11 0x00010000
-#define S20 0x00000000
-#define S21 0x00100000
-#define S30 0x00000000
-#define S31 0x01000000
-#define S40 0x00000000
-#define S41 0x10000000
-#define S50 0x00000001
-#define S51 0x00000000
-#define S60 0x00000010
-#define S61 0x00000000
-#define S70 0x00000100
-#define S71 0x00000000
+#define S10 0b00000000
+#define S11 0b00010000
+#define S20 0b00000000
+#define S21 0b00100000
+#define S30 0b00000000
+#define S31 0b01000000
+#define S40 0b00000000
+#define S41 0b10000000
+#define S50 0b00000001
+#define S51 0b00000000
+#define S60 0b00000010
+#define S61 0b00000000
+#define S70 0b00000100
+#define S71 0b00000000
 // TODO
 
 

@@ -331,8 +331,7 @@ void loop() {
     // everything is managed by RTOS, so nothing really happens here!
     vTaskDelay(1); // prevent watchdog from getting upset
 }
-// THIS IS A TEST COMMENT HELLLO THERE
-//yooooooooooo
+
 /*
 ===============================================================================================
                                 FreeRTOS Task Functions
