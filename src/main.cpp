@@ -71,8 +71,6 @@ See README file for links to libraries, etc.
 #define TWAI_RX_PIN 42
 #define TWAI_TX_PIN 41
 
-#define TOTAL_IC 2
-
 /*
 ===============================================================================================
                                     Configuration
