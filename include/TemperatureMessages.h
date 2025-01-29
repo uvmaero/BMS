@@ -170,6 +170,26 @@ cell_asic Mux0S6[TOTAL_IC] = {
         }
     }
 };
+cell_asic Mux0S7[TOTAL_IC] = {
+    {
+        .com = {
+            .rx_data = {
+                static_cast<uint8_t>(START | AX0), static_cast<uint8_t>(A01 | ACK),
+                static_cast<uint8_t>(BLANK | S70), static_cast<uint8_t>(S71 | ACK),
+                static_cast<uint8_t>(STOP | NOTHING)
+            }
+        }
+    },
+    {
+        .com = {
+            .rx_data = {
+                static_cast<uint8_t>(START | AX0), static_cast<uint8_t>(A11 | ACK),
+                static_cast<uint8_t>(BLANK | S60), static_cast<uint8_t>(S61 | ACK),
+                static_cast<uint8_t>(STOP | NOTHING)
+            }
+        }
+    }
+};
 
 
 cell_asic Mux1S1[TOTAL_IC] = {
@@ -273,26 +293,6 @@ cell_asic Mux1S5[TOTAL_IC] = {
     }
 };
 cell_asic Mux1S6[TOTAL_IC] = {
-    {
-        .com = {
-            .rx_data = {
-                static_cast<uint8_t>(START | AX0), static_cast<uint8_t>(A11 | ACK),
-                static_cast<uint8_t>(BLANK | S60), static_cast<uint8_t>(S61 | ACK),
-                static_cast<uint8_t>(STOP | NOTHING)
-            }
-        }
-    },
-    {
-        .com = {
-            .rx_data = {
-                static_cast<uint8_t>(START | AX0), static_cast<uint8_t>(A11 | ACK),
-                static_cast<uint8_t>(BLANK | S60), static_cast<uint8_t>(S61 | ACK),
-                static_cast<uint8_t>(STOP | NOTHING)
-            }
-        }
-    }
-};
-cell_asic Mux1S7[TOTAL_IC] = {
     {
         .com = {
             .rx_data = {

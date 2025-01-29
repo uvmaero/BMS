@@ -46,6 +46,9 @@ See README file for links to libraries, etc.
 
 // SPIClass * vspi = NULL;
 
+//0 for rhs, 1 for lhs
+#define SIDE 0
+
 // CAN Pins
 #define TXD 1 // CAN_MISO
 #define RXD 3 // CAN_MOSI
@@ -54,11 +57,23 @@ See README file for links to libraries, etc.
 
 // FreeRTOS tasks
 #define TWAI_READ_REFRESH_RATE 1 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+
+
+
 #define TWAI_WRITE_REFRESH_RATE 8 // measured in ticks (RTOS ticks interrupt at 1 kHz)
 
+
+
 #define TEMPERATURE_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+
+
+
 #define PACK_READ_REFRESH_RATE 9 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+
+
+
 #define SERIAL_WRITE_REFRESH_RATE 500 // measured in ticks (RTOS ticks interrupt at 1 kHz)
+
 
 
 #define TASK_STACK_SIZE 20000 // in bytes
@@ -77,15 +92,20 @@ See README file for links to libraries, etc.
 ===============================================================================================
 */
 // Under Voltage and Over Voltage Thresholds
-const uint16_t OV_THRESHOLD = 41000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
-const uint16_t UV_THRESHOLD = 30000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
+const uint16_t OV_THRESHOLD = 41000;
+//!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.1V)
+const uint16_t UV_THRESHOLD = 30000;
+//!< Under voltage threshold ADC Code. LSB = 0.0001 ---(3V)
 /*************************************************************************
  Set configuration register. Refer to the data sheet
 **************************************************************************/
-bool REFON = true; // Reference Powered Up Bit (Remain powered until watchdog timeout)
+bool REFON = true;
+// Reference Powered Up Bit (Remain powered until watchdog timeout)
 bool ADCOPT = false; // ADC Mode option bit 0 = (27kHz, 7kHz, 422 Hz, or 26 Hz)
-bool GPIOBITS_A[5] = {false, false, true, true, true}; // GPIO Pin Control Pins 1,2,3,4,5
-bool GPIOBITS_B[4] = {false, false, false, false}; // GPIO Pin Control Pins 6,7,8,9
+bool GPIOBITS_A[5] = {false, false, true, true, true};
+// GPIO Pin Control Pins 1,2,3,4,5
+bool GPIOBITS_B[4] = {false, false, false, false};
+// GPIO Pin Control Pins 6,7,8,9
 
 uint16_t UV = UV_THRESHOLD; // Under voltage Comparison Voltage
 uint16_t OV = OV_THRESHOLD; // Over voltage Comparison Voltage
@@ -93,9 +113,11 @@ uint16_t OV = OV_THRESHOLD; // Over voltage Comparison Voltage
 bool DCCBITS_A[12] = {false, false, false, false, false, false,
                       false, false, false, false, false, false};
 // Discharge cell switch 1,2,3,4,5,6,7,8,9,10,11,12
-bool DCCBITS_B[7] = {false, false, false, false}; //!< Discharge cell switch  0,13,14,15
+bool DCCBITS_B[7] = {false, false, false, false};
+//!< Discharge cell switch  0,13,14,15
 bool DCTOBITS[4] = {true, false, true,
-                    false}; //!< Discharge time value  0,1,2,3  // Programed for 4 min
+                    false};
+//!< Discharge time value  0,1,2,3  // Programed for 4 min
 
 /*Ensure that Dcto bits are set according to the required discharge time. Refer
  * to the data sheet */
@@ -112,6 +134,7 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 
 struct cell_status {
     char side;
+
     struct CellData {
         uint8_t total_ic = TOTAL_IC; // number of ic's in daisy chain
     } cellData;
@@ -127,6 +150,7 @@ struct cell_status {
         std::vector<uint8_t> cell[TOTAL_IC]{};
     } temperatureStatus;
 };
+
 cell_status cellStatus0 = {.side = 0};
 cell_status cellStatus1 = {.side = 1};
 cell_status *activeCell;
@@ -158,9 +182,12 @@ TaskHandle_t xHandleTWAIWrite = nullptr;
 
 // TWAI
 static const twai_general_config_t can_general_config =
-    TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TWAI_TX_PIN, (gpio_num_t)TWAI_RX_PIN, TWAI_MODE_NORMAL);
-static const twai_timing_config_t can_timing_config = TWAI_TIMING_CONFIG_500KBITS();
-static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+    TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TWAI_TX_PIN,
+                                (gpio_num_t)TWAI_RX_PIN, TWAI_MODE_NORMAL);
+static const twai_timing_config_t can_timing_config =
+    TWAI_TIMING_CONFIG_500KBITS();
+static const twai_filter_config_t can_filter_config =
+    TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
 /*
 ===============================================================================================
@@ -179,6 +206,9 @@ static const twai_filter_config_t can_filter_config = TWAI_FILTER_CONFIG_ACCEPT_
 
 String TaskStateToString(eTaskState state);
 String msToMSms(uint64_t ms);
+
+//function to convert the base voltage values into readable temperatures
+void convertTemps();
 
 // function to initialize or swap which battery SPI is connected to
 void switchSPI();
@@ -205,21 +235,28 @@ void setup() {
 
     /*** LTC6812 Initializations ***/
     // initialize configuration registers
-    LTC6812_init_cfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-    LTC6812_init_cfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+    LTC6812_init_cfg(activeCell->cellData.total_ic,
+                     activeCell->voltageStatus.BMS_IC);
+    LTC6812_init_cfgb(activeCell->cellData.total_ic,
+                      activeCell->voltageStatus.BMS_IC);
     // set registers for each IC
-    LTC6812_set_cfgr(1, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT, GPIOBITS_A, DCCBITS_A,
+    LTC6812_set_cfgr(1, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
+                     GPIOBITS_A, DCCBITS_A,
                      DCTOBITS, UV, OV);
-    LTC6812_set_cfgrb(1, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN, PSBits, GPIOBITS_B,
+    LTC6812_set_cfgrb(1, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN, PSBits,
+                      GPIOBITS_B,
                       DCCBITS_B);
 
-    LTC6812_reset_crc_count(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-    LTC6812_init_reg_limits(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+    LTC6812_reset_crc_count(activeCell->cellData.total_ic,
+                            activeCell->voltageStatus.BMS_IC);
+    LTC6812_init_reg_limits(activeCell->cellData.total_ic,
+                            activeCell->voltageStatus.BMS_IC);
 
 
     bool twaiActive = false;
     // install TWAI driver
-    if (twai_driver_install(&can_general_config, &can_timing_config, &can_filter_config) ==
+    if (twai_driver_install(&can_general_config, &can_timing_config,
+                            &can_filter_config) ==
         ESP_OK) {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ SUCCESS ]\n");
 
@@ -245,58 +282,66 @@ void setup() {
 
     if (xMutex != nullptr) {
         // Cell read tasks (created on core 1)
-        xTaskCreatePinnedToCore(packReadTask, "Voltage-Read", TASK_STACK_SIZE, nullptr,
+        xTaskCreatePinnedToCore(packReadTask, "Voltage-Read", TASK_STACK_SIZE,
+                                nullptr,
                                 tskIDLE_PRIORITY, &xHandleVoltageRead, 1);
 
         // TWAI tasks (core 0)
         if (twaiActive) {
-            xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE, nullptr, 1,
+            xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE,
+                                    nullptr, 1,
                                     &xHandleTWAIRead, 0);
-            xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write", TASK_STACK_SIZE, nullptr, 1,
+            xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write",
+                                    TASK_STACK_SIZE, nullptr, 1,
                                     &xHandleTWAIWrite, 0);
         }
         // Debug task (core 0)
-        xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write", TASK_STACK_SIZE, nullptr,
+        xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write",
+                                TASK_STACK_SIZE, nullptr,
                                 tskIDLE_PRIORITY, &xHandleSerialWrite, 0);
     }
     else {
         SERIAL_DEBUG.printf("FAILED TO INIT MUTEX!\nHALTING OPERATIONS!");
         // ReSharper disable once CppDFAEndlessLoop
-        while (true)
-            ;
+        while (true);
     }
 
     SERIAL_DEBUG.printf("\nTask Status:\n");
     // Read
     if (xHandleVoltageRead != nullptr)
         SERIAL_DEBUG.printf("VOLTAGE READ TASK STATUS: %s \n",
-                            TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
+                            TaskStateToString(eTaskGetState(xHandleVoltageRead))
+                            .c_str());
     else
         SERIAL_DEBUG.printf("VOLTAGE READ TASK STATUS: DISABLED!\n");
 
     if (xHandleTempRead != nullptr)
         SERIAL_DEBUG.printf("TEMPERATURE READ TASK STATUS: %s \n",
-                            TaskStateToString(eTaskGetState(xHandleTempRead)).c_str());
+                            TaskStateToString(eTaskGetState(xHandleTempRead)).
+                            c_str());
     else
         SERIAL_DEBUG.printf("TEMPERATURE READ TASK STATUS: DISABLED!\n");
 
     // Serial
     if (xHandleSerialWrite != nullptr)
         SERIAL_DEBUG.printf("SERIAL Write TASK STATUS: %s \n",
-                            TaskStateToString(eTaskGetState(xHandleSerialWrite)).c_str());
+                            TaskStateToString(eTaskGetState(xHandleSerialWrite))
+                            .c_str());
     else
         SERIAL_DEBUG.printf("SERIAL Write TASK STATUS: DISABLED!\n");
 
     // TWAI
     if (xHandleTWAIRead != nullptr)
         SERIAL_DEBUG.printf("TWAI READ TASK STATUS: %s \n",
-                            TaskStateToString(eTaskGetState(xHandleTWAIRead)).c_str());
+                            TaskStateToString(eTaskGetState(xHandleTWAIRead)).
+                            c_str());
     else
         SERIAL_DEBUG.printf("TWAI READ TASK STATUS: DISABLED!\n");
 
     if (xHandleTWAIWrite != nullptr)
         SERIAL_DEBUG.printf("TWAI WRITE TASK STATUS: %s \n",
-                            TaskStateToString(eTaskGetState(xHandleTWAIWrite)).c_str());
+                            TaskStateToString(eTaskGetState(xHandleTWAIWrite)).
+                            c_str());
     else
         SERIAL_DEBUG.printf("TWAI WRITE TASK STATUS: DISABLED!\n");
 
@@ -312,8 +357,7 @@ void setup() {
     else {
         SERIAL_DEBUG.printf("\nScheduler STATUS: FAILED\nHALTING OPERATIONS");
         // ReSharper disable once CppDFAEndlessLoop
-        while (true)
-            ;
+        while (true);
     }
     SERIAL_DEBUG.printf("\n\n|--- END SETUP ---|\n\n");
     // ----------------------------------------------------------------------------------------
@@ -342,21 +386,27 @@ void loop() {
         // Check for mutex availability
         if (xSemaphoreTake(xMutex, 10) == pdTRUE) {
             // ------------------------ Voltage Read ------------------------
-            // If we have data yet to be converted, we don't want to over-write
-            // it
+            // If we have data yet to be converted, we don't want to over-write it
             if (adcStatus == NOTSTARTED) {
                 // wake up ic
                 wakeup_sleep(activeCell->cellData.total_ic);
-                for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic;
+                for (uint8_t current_ic = 0; current_ic < activeCell->cellData.
+                     total_ic;
                      current_ic++) {
-                    LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
+                    LTC6812_set_cfgr(current_ic,
+                                     activeCell->voltageStatus.BMS_IC, REFON,
+                                     ADCOPT,
                                      GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-                    LTC6812_set_cfgrb(current_ic, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN,
+                    LTC6812_set_cfgrb(current_ic,
+                                      activeCell->voltageStatus.BMS_IC, FDRF,
+                                      DTMEN,
                                       PSBits, GPIOBITS_B, DCCBITS_B);
                 }
                 wakeup_idle(activeCell->cellData.total_ic);
-                LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-                LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+                LTC6812_wrcfg(activeCell->cellData.total_ic,
+                              activeCell->voltageStatus.BMS_IC);
+                LTC6812_wrcfgb(activeCell->cellData.total_ic,
+                               activeCell->voltageStatus.BMS_IC);
 
                 // start ADC voltage conversion
                 // normal operation, discharge disabled, all cell channels
@@ -364,7 +414,8 @@ void loop() {
 
                 // record the timestamp when the data was snapshotted and
                 // convert to milliseconds
-                activeCell->voltageStatus.voltageStamp = esp_rtc_get_time_us() / 1000;
+                activeCell->voltageStatus.voltageStamp = esp_rtc_get_time_us() /
+                    1000;
                 // just in case, to avoid duplicate data, ensure that data
                 // collection does to try to operate again
                 voltageDataAvailable = false;
@@ -381,11 +432,13 @@ void loop() {
             }
 
             if (adcStatus == COMPLETED) {
-                const uint8_t pec_error = LTC6812_rdcv(REG_ALL, activeCell->cellData.total_ic,
-                                                       activeCell->voltageStatus.BMS_IC);
+                const uint8_t pec_error = LTC6812_rdcv(
+                    REG_ALL, activeCell->cellData.total_ic,
+                    activeCell->voltageStatus.BMS_IC);
                 if (pec_error != 0) {
                     if (prevErr != pec_error)
-                        SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n", pec_error);
+                        SERIAL_DEBUG.printf("VOLTAGE READ ERROR; Code: %d\n",
+                                            pec_error);
                     prevErr = pec_error;
                 }
                 // We have read the data, conversion is done, redo
@@ -393,24 +446,32 @@ void loop() {
                 // We can read the data, and it won't be undefined
                 voltageDataAvailable = pec_error ? false : true;
             }
+            //Make sure the temperature has not been read for this cycle yet
             if (tempStatus == NOTSTARTED) {
                 // ------------------ Temperature Read ------------------
                 wakeup_sleep(activeCell->cellData.total_ic);
-                for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic;
+                for (uint8_t current_ic = 0; current_ic < activeCell->cellData.
+                     total_ic;
                      current_ic++) {
-                    LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
+                    LTC6812_set_cfgr(current_ic,
+                                     activeCell->voltageStatus.BMS_IC, REFON,
+                                     ADCOPT,
                                      GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-                    LTC6812_set_cfgrb(current_ic, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN,
+                    LTC6812_set_cfgrb(current_ic,
+                                      activeCell->voltageStatus.BMS_IC, FDRF,
+                                      DTMEN,
                                       PSBits, GPIOBITS_B, DCCBITS_B);
                 }
                 wakeup_idle(activeCell->cellData.total_ic);
-                LTC6812_wrcfg(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
-                LTC6812_wrcfgb(activeCell->cellData.total_ic, activeCell->voltageStatus.BMS_IC);
+                LTC6812_wrcfg(activeCell->cellData.total_ic,
+                              activeCell->voltageStatus.BMS_IC);
+                LTC6812_wrcfgb(activeCell->cellData.total_ic,
+                               activeCell->voltageStatus.BMS_IC);
 
-
+                //--------------------- Begin Read ---------------------
                 cell_asic temperatures[activeCell->cellData.total_ic];
 
-                for (int i = 0; i < 6; i++) {
+                for (int i = 0; i < 7; i++) {
                     switch (i) {
                     case 0:
                         LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S1);
@@ -430,16 +491,21 @@ void loop() {
                     case 5:
                         LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S6);
                         break;
+                    case 6:
+                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux0S7);
+                        break;
                     default:
+                        break;
                     }
                     LTC6812_stcomm(4);
 
                     const uint8_t pec_error =
-                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures);
+                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic,
+                                      temperatures);
                     if (pec_error != 0) {
-                        SERIAL_DEBUG.printf("TEMPERATURE READ ERROR; Code: %d\n", pec_error);
+                        SERIAL_DEBUG.printf(
+                            "TEMPERATURE READ ERROR; Code: %d\n", pec_error);
                     }
-
 
                     // The rdaux function will start with the first IC and put the reading into
                     // aux.a_codes [0], then count up from there here we are looping through the
@@ -449,7 +515,7 @@ void loop() {
                             temperatures->aux.a_codes[j]);
                     }
                 }
-                for (int i = 0; i < 7; i++) {
+                for (int i = 0; i < 6; i++) {
                     switch (i) {
                     case 0:
                         LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S1);
@@ -469,17 +535,17 @@ void loop() {
                     case 5:
                         LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S6);
                         break;
-                    case 6:
-                        LTC6812_wrcomm(activeCell->cellData.total_ic, Mux1S7);
-                        break;
                     default:
+                        break;
                     }
                     LTC6812_stcomm(4);
 
                     const uint8_t pec_error =
-                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic, temperatures);
+                        LTC6812_rdaux(GPIOTEMP1, activeCell->cellData.total_ic,
+                                      temperatures);
                     if (pec_error != 0) {
-                        SERIAL_DEBUG.printf("TEMPERATURE READ ERROR; Code: %d\n", pec_error);
+                        SERIAL_DEBUG.printf(
+                            "TEMPERATURE READ ERROR; Code: %d\n", pec_error);
                     }
 
                     // The rdaux function will start with the first IC and put the reading into
@@ -488,13 +554,18 @@ void loop() {
                     for (int j = 0; j < TOTAL_IC; j++) {
                         activeCell->temperatureStatus.cell[j].push_back(
                             temperatures->aux.a_codes[j]);
+                        //This might fault depending on what the read back data is
+                        //It *SHOULD* just read in a 0 on the voltage, but nothing is
+                        //guaranteed
                     }
-
                     tempStatus = COMPLETED;
                 }
 
                 if (tempStatus == COMPLETED && adcStatus == COMPLETED) {
+                    //Switch and reset the counters
                     switchSPI();
+                    tempStatus = NOTSTARTED;
+                    adcStatus = NOTSTARTED;
                 }
             }
             // release mutex
@@ -518,11 +589,13 @@ void loop() {
                 // Create top separator line
                 dataFrame.concat("+----------+-----------+-----------+\n");
                 // Get the timestamp
-                String timestamp = msToMSms(activeCell->voltageStatus.voltageStamp);
+                String timestamp = msToMSms(
+                    activeCell->voltageStatus.voltageStamp);
 
                 // Build header row with timestamp in second and third columns
                 char headerLine[64];
-                snprintf(headerLine, sizeof(headerLine), "|          | %9s | %9s |\n",
+                snprintf(headerLine, sizeof(headerLine),
+                         "|          | %9s | %9s |\n",
                          timestamp.c_str(), "12:34.456");
                 dataFrame.concat(headerLine);
 
@@ -534,8 +607,10 @@ void loop() {
                 dataFrame.concat("+----------+-----------+-----------+\n");
 
                 // Iterate over each IC
-                for (int current_ic = 0; current_ic < activeCell->cellData.total_ic; current_ic++) {
-                    int cell_channels = activeCell->voltageStatus.BMS_IC[0].ic_reg.cell_channels;
+                for (int current_ic = 0; current_ic < activeCell->cellData.
+                     total_ic; current_ic++) {
+                    int cell_channels = activeCell->voltageStatus.BMS_IC[0].
+                                        ic_reg.cell_channels;
 
                     // Iterate over each cell channel
                     for (int i = 0; i < cell_channels; i++) {
@@ -544,12 +619,14 @@ void loop() {
 
                         // Get the cell voltage and convert it to volts
                         float voltage =
-                            activeCell->voltageStatus.BMS_IC[current_ic].cells.c_codes[i] * 0.0001;
+                            activeCell->voltageStatus.BMS_IC[current_ic].cells.
+                            c_codes[i] * 0.0001;
 
                         // Since temperature data is not available yet, we'll
                         // use "N/A" Format the line with fixed-width columns
                         char line[64];
-                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n", cell_number,
+                        snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n",
+                                 cell_number,
                                  voltage, "N/A");
 
                         // Add the formatted line to the data frame
@@ -642,7 +719,8 @@ String msToMSms(uint64_t ms) {
     ms = ms % 1000;
 
     char buffer[16];
-    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03llu", minutes, seconds, ms);
+    snprintf(buffer, sizeof(buffer), "%02lu:%02lu.%03llu", minutes, seconds,
+             ms);
 
     return {buffer};
 }
@@ -666,7 +744,8 @@ void switchSPI() {
     else {
         // If something went wrong with active spi, set to disabled, flag then recall this
         // function
-        SERIAL_DEBUG.printf("ERROR: Invalid activeSPI detected: %d, recovering", activeSPI);
+        SERIAL_DEBUG.printf("ERROR: Invalid activeSPI detected: %d, recovering",
+                            activeSPI);
         activeSPI = -1;
         switchSPI();
     }
@@ -681,15 +760,18 @@ void switchSPI() {
 void print_wrconfig(void) {
     int cfg_pec;
     SERIAL_DEBUG.println(F("Written Configuration A Register: "));
-    for (int current_ic = 0; current_ic < activeCell->cellData.total_ic; current_ic++) {
+    for (int current_ic = 0; current_ic < activeCell->cellData.total_ic;
+         current_ic++) {
         SERIAL_DEBUG.print(F("CFGA IC "));
         SERIAL_DEBUG.print(current_ic + 1, DEC);
         for (int i = 0; i < 6; i++) {
             SERIAL_DEBUG.print(F(", 0x"));
-            serial_print_hex(activeCell->voltageStatus.BMS_IC[current_ic].config.tx_data[i]);
+            serial_print_hex(
+                activeCell->voltageStatus.BMS_IC[current_ic].config.tx_data[i]);
         }
         SERIAL_DEBUG.print(F(", Calculated PEC: 0x"));
-        cfg_pec = pec15_calc(6, &activeCell->voltageStatus.BMS_IC[current_ic].config.tx_data[0]);
+        cfg_pec = pec15_calc(
+            6, &activeCell->voltageStatus.BMS_IC[current_ic].config.tx_data[0]);
         serial_print_hex((uint8_t)(cfg_pec >> 8));
         SERIAL_DEBUG.print(F(", 0x"));
         serial_print_hex((uint8_t)(cfg_pec));
