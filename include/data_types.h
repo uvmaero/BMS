@@ -12,5 +12,10 @@
 
 enum cell_read_status { NOTSTARTED, COMPLETED, INPROGRESS };
 
+struct cell_temp {
+    uint8_t cellNum;
+    uint8_t temperature;
+};
+
 
 #endif // DATA_TYPES_H
