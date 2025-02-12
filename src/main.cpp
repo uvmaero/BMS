@@ -25,6 +25,7 @@ See README file for links to libraries, etc.
 #include "data_types.h"
 #include "driver/twai.h"
 #include "rtc.h"
+#include "tables.h"
 
 /*
 ===============================================================================================
@@ -140,13 +141,16 @@ struct cell_status {
 
     // Temperature
     struct TemperatureStatus {
-        std::vector<uint8_t> cell[TOTAL_IC]{};
+        std::vector<float> cell[TOTAL_IC]{};
     } temperatureStatus;
 };
 
 cell_status cellStatus0 = {.side = 0};
 cell_status cellStatus1 = {.side = 1};
 cell_status *activeCell;
+
+std::vector<cell_temp> activeTemp{};
+
 
 // This controls which battery pack is being read through SPI
 // A value of -1 means none is active
@@ -277,91 +281,6 @@ void setup() {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ FAILED ]\n");
     }
 
-
-    /*// ------------------------------- Scheduler & Task Status
-    // --------------------------------- init mutex
-    xMutex = xSemaphoreCreateMutex();
-
-    if (xMutex != nullptr) {
-        // Cell read tasks (created on core 1)
-        xTaskCreatePinnedToCore(packReadTask, "Voltage-Read", TASK_STACK_SIZE,
-                                nullptr, tskIDLE_PRIORITY, &xHandleVoltageRead,
-                                1);
-
-        // TWAI tasks (core 0)
-        if (twaiActive) {
-            xTaskCreatePinnedToCore(TWAIReadTask, "TWAI-Read", TASK_STACK_SIZE,
-                                    nullptr, 1, &xHandleTWAIRead, 0);
-            xTaskCreatePinnedToCore(TWAIWriteTask, "TWAI-Write",
-                                    TASK_STACK_SIZE, nullptr, 1,
-                                    &xHandleTWAIWrite, 0);
-        }
-        // Debug task (core 0)
-        xTaskCreatePinnedToCore(serialWriteTask, "SERIAL_DEBUG-Write",
-                                TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
-                                &xHandleSerialWrite, 0);
-    }
-    else {
-        SERIAL_DEBUG.printf("FAILED TO INIT MUTEX!\nHALTING OPERATIONS!");
-        // ReSharper disable once CppDFAEndlessLoop
-        while (true)
-            ;
-    }
-
-    SERIAL_DEBUG.printf("\nTask Status:\n");
-    // Read
-    if (xHandleVoltageRead != nullptr)
-        SERIAL_DEBUG.printf(
-            "VOLTAGE READ TASK STATUS: %s \n",
-            TaskStateToString(eTaskGetState(xHandleVoltageRead)).c_str());
-    else
-        SERIAL_DEBUG.printf("VOLTAGE READ TASK STATUS: DISABLED!\n");
-
-    if (xHandleTempRead != nullptr)
-        SERIAL_DEBUG.printf(
-            "TEMPERATURE READ TASK STATUS: %s \n",
-            TaskStateToString(eTaskGetState(xHandleTempRead)).c_str());
-    else
-        SERIAL_DEBUG.printf("TEMPERATURE READ TASK STATUS: DISABLED!\n");
-
-    // Serial
-    if (xHandleSerialWrite != nullptr)
-        SERIAL_DEBUG.printf(
-            "SERIAL Write TASK STATUS: %s \n",
-            TaskStateToString(eTaskGetState(xHandleSerialWrite)).c_str());
-    else
-        SERIAL_DEBUG.printf("SERIAL Write TASK STATUS: DISABLED!\n");
-
-    // TWAI
-    if (xHandleTWAIRead != nullptr)
-        SERIAL_DEBUG.printf(
-            "TWAI READ TASK STATUS: %s \n",
-            TaskStateToString(eTaskGetState(xHandleTWAIRead)).c_str());
-    else
-        SERIAL_DEBUG.printf("TWAI READ TASK STATUS: DISABLED!\n");
-
-    if (xHandleTWAIWrite != nullptr)
-        SERIAL_DEBUG.printf(
-            "TWAI WRITE TASK STATUS: %s \n",
-            TaskStateToString(eTaskGetState(xHandleTWAIWrite)).c_str());
-    else
-        SERIAL_DEBUG.printf("TWAI WRITE TASK STATUS: DISABLED!\n");
-
-    // scheduler status
-    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-        SERIAL_DEBUG.printf("\nScheduler Status: RUNNING\n");
-
-        // clock frequency
-        rtc_cpu_freq_config_t clock_config;
-        rtc_clk_cpu_freq_get_config(&clock_config);
-        SERIAL_DEBUG.printf("CPU Frequency: %dMHz\n", clock_config.freq_mhz);
-    }
-    else {
-        SERIAL_DEBUG.printf("\nScheduler STATUS: FAILED\nHALTING OPERATIONS");
-        // ReSharper disable once CppDFAEndlessLoop
-        while (true)
-            ;
-    }*/
     SERIAL_DEBUG.printf("\n\n|--- END SETUP ---|\n\n");
     // ----------------------------------------------------------------------------------------
 }
@@ -379,7 +298,7 @@ void loop() {
 
 /*
 ===============================================================================================
-                                FreeRTOS Task Functions
+                                  Task Functions
 ===============================================================================================
 */
 
@@ -524,6 +443,9 @@ void readTemperature() {
             // nothing is guaranteed
         }
     }
+
+    // Convert the temperature voltages into degrees C
+    convertTemps();
 }
 
 void serialWrite() {
@@ -548,11 +470,16 @@ void serialWrite() {
     // Add separator line
     dataFrame.concat("+----------+-----------+-----------+\n");
 
+
+    // TODO: Make this less bad
+
+    int j = 0;
     // Iterate over each IC
     for (int current_ic = 0; current_ic < activeCell->cellData.total_ic;
          current_ic++) {
         int cell_channels =
             activeCell->voltageStatus.BMS_IC[0].ic_reg.cell_channels;
+
 
         // Iterate over each cell channel
         for (int i = 0; i < cell_channels; i++) {
@@ -564,16 +491,16 @@ void serialWrite() {
                 activeCell->voltageStatus.BMS_IC[current_ic].cells.c_codes[i] *
                 0.0001;
 
-            // Since temperature data is not available yet,
-            // we'll use "N/A" Format the line with
-            // fixed-width columns
+            float temperature = activeTemp[j].temperature;
             char line[64];
-            snprintf(line, sizeof(line), "| %8d | %9.4f | %9s |\n", cell_number,
-                     voltage, "N/A");
+            snprintf(line, sizeof(line), "| %8d | %9.4f | %9.4f |\n",
+                     cell_number, voltage, temperature);
 
             // Add the formatted line to the data frame
             dataFrame.concat(line);
+            j++;
         }
+        j++;
     }
 
     // Add bottom separator line
@@ -672,8 +599,16 @@ void switchSPI() {
 void convertTemps() {
     std::vector<cell_temp> temperatures;
 
-    for (int i = 0; i < 50; i++) {
+    for (uint8_t i = 0; i < 25; i++) {
+        cell_temp t = {i,
+                       voltage_to_temperature(
+                           activeCell->temperatureStatus.cell[i % 2][i])};
+        // We use emplace back to represent that we are making a new object and
+        // this temporary one will be deleted
+        temperatures.emplace_back(t);
     }
+
+    activeTemp = temperatures;
 }
 
 
