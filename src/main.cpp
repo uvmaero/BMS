@@ -127,7 +127,7 @@ bool PSBits[2] = {false, false}; //!< Digital Redundancy Path Selection//ps-0,1
 */
 
 struct cell_status {
-    char side{};
+    uint8_t side{};
 
     struct CellData {
         uint8_t total_ic = TOTAL_IC; // number of ic's in daisy chain
@@ -145,8 +145,8 @@ struct cell_status {
     } temperatureStatus;
 };
 
-cell_status cellStatus0 = {.side = 0};
-cell_status cellStatus1 = {.side = 1};
+cell_status cellStatus0;
+cell_status cellStatus1;
 cell_status *activeCell;
 
 std::vector<cell_temp> activeTemp{};
@@ -239,29 +239,37 @@ void setup() {
     SERIAL_DEBUG.printf("\n\n|--- STARTING SETUP ---|\n\n");
     // ----------------------------------------------------------------------
 
+    cellStatus0.side = 0;
+    cellStatus1.side = 1;
+
     /*** Spi Initialization ***/
     switchSPI();
-
+    SERIAL_DEBUG.printf("SPI initialized \n");
+    SERIAL_DEBUG.printf("test\n");
     /*** LTC6812 Initializations ***/
     // initialize configuration registers
-    LTC6812_init_cfg(activeCell->cellData.total_ic,
-                     activeCell->voltageStatus.BMS_IC);
-    LTC6812_init_cfgb(activeCell->cellData.total_ic,
-                      activeCell->voltageStatus.BMS_IC);
+    // LTC681x_init_cfg(activeCell->cellData.total_ic,
+    //               activeCell->voltageStatus.BMS_IC);
+    // LTC6812_init_cfgb(activeCell->cellData.total_ic,
+    //              activeCell->voltageStatus.BMS_IC);
+    SERIAL_DEBUG.printf("Init Done\n");
     // set registers for each IC
-    LTC6812_set_cfgr(1, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
-                     GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
-    LTC6812_set_cfgrb(1, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN, PSBits,
-                      GPIOBITS_B, DCCBITS_B);
+    // LTC6812_set_cfgr(1, activeCell->voltageStatus.BMS_IC, REFON, ADCOPT,
+    //              GPIOBITS_A, DCCBITS_A, DCTOBITS, UV, OV);
+    // LTC6812_set_cfgrb(1, activeCell->voltageStatus.BMS_IC, FDRF, DTMEN,
+    // PSBits,
+    //               GPIOBITS_B, DCCBITS_B);
 
-    LTC6812_reset_crc_count(activeCell->cellData.total_ic,
-                            activeCell->voltageStatus.BMS_IC);
-    LTC6812_init_reg_limits(activeCell->cellData.total_ic,
-                            activeCell->voltageStatus.BMS_IC);
+    // LTC6812_reset_crc_count(activeCell->cellData.total_ic,
+    //            activeCell->voltageStatus.BMS_IC);
+    // LTC6812_init_reg_limits(activeCell->cellData.total_ic,
+    //        activeCell->voltageStatus.BMS_IC);
 
+    SERIAL_DEBUG.printf("configuration completed\n");
 
     bool twaiActive = false;
     // install TWAI driver
+    /*
     if (twai_driver_install(&can_general_config, &can_timing_config,
                             &can_filter_config) == ESP_OK) {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ SUCCESS ]\n");
@@ -280,7 +288,7 @@ void setup() {
     else {
         SERIAL_DEBUG.printf("TWAI DRIVER INSTALL [ FAILED ]\n");
     }
-
+*/
     SERIAL_DEBUG.printf("\n\n|--- END SETUP ---|\n\n");
     // ----------------------------------------------------------------------------------------
 }
@@ -292,6 +300,9 @@ void setup() {
 */
 
 void loop() {
+    readVoltage();
+    readTemperature();
+    serialWrite();
     // everything is managed by RTOS, so nothing really happens here!
     vTaskDelay(1); // prevent watchdog from getting upset
 }
@@ -303,7 +314,9 @@ void loop() {
 */
 
 void readVoltage() {
+    SERIAL_DEBUG.printf("Reading Voltage\n");
     wakeup_sleep(activeCell->cellData.total_ic);
+    SERIAL_DEBUG.printf("Woke up\n");
     for (uint8_t current_ic = 0; current_ic < activeCell->cellData.total_ic;
          current_ic++) {
         LTC6812_set_cfgr(current_ic, activeCell->voltageStatus.BMS_IC, REFON,

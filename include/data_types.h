@@ -8,7 +8,7 @@
 #include <LTC681x.h>
 #include <cstdint>
 
-#define TOTAL_IC 2
+#define TOTAL_IC 1
 
 enum cell_read_status { NOTSTARTED, COMPLETED, INPROGRESS };
 
